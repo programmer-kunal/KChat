@@ -1,3 +1,4 @@
+````md
 <div align="center">
 
 # 💬 KChat
@@ -12,7 +13,13 @@
 
 <br>
 
-> 🚀 A beautifully designed real-time messaging app with modern UI, image sharing, group chats, friend system, and Firebase-powered realtime communication.
+> 🚀 A beautifully designed real-time messaging app with modern UI, image sharing, group chats, friend system, voice/video calling, and Firebase-powered realtime communication.
+
+<br>
+
+<a href="YOUR_APK_LINK_HERE">
+<img src="https://img.shields.io/badge/📥_Download_KChat_APK-2ea44f?style=for-the-badge&logo=android&logoColor=white"/>
+</a>
 
 </div>
 
@@ -23,6 +30,7 @@
 ## 🔐 Authentication
 - Firebase Authentication
 - Secure Login & Signup
+- Google Sign-In
 - Persistent Sessions
 
 ## 💬 Real-Time Chat
@@ -32,12 +40,19 @@
 - Group Chat Support
 - Clear Chat Feature
 - Delete for Everyone
+- Message Status Updates
+
+## 📞 Communication
+- Voice Calling
+- Video Calling
+- Realtime Call Handling
 
 ## 👥 Friend System
 - Add Friends
 - Friend Requests
 - Accept / Reject Requests
 - Unfriend Feature
+- User Search
 
 ## 🖼 Media Sharing
 - Image Sharing
@@ -54,6 +69,7 @@
 - Responsive Layouts
 - Modern Bottom Sheets
 - Improved Realtime Experience
+- Optimized Chat Experience
 
 ---
 
@@ -143,6 +159,19 @@
 | MVVM Architecture | Clean Architecture |
 | Coil | Image Loading |
 | Hilt | Dependency Injection |
+| Volley | Network Operations |
+
+---
+
+# ⚡ Performance Highlights
+
+- Optimized Firebase Realtime Updates
+- Smooth Compose UI Rendering
+- Fast Image Loading
+- Responsive UI Components
+- Lightweight Modern Design
+- Efficient State Management
+- Improved Realtime Synchronization
 
 ---
 
@@ -158,3 +187,56 @@ UI (Jetpack Compose)
      Repository
         ↓
  Firebase Services
+````
+
+---
+
+# 🚀 Current Capabilities
+
+✅ Real-Time Messaging
+✅ Group Communication
+✅ Image Sharing
+✅ Push Notifications
+✅ Voice Calling
+✅ Video Calling
+✅ Friend Management
+✅ User Search
+✅ Firebase Integration
+✅ Modern Compose UI
+
+---
+
+# 👨‍💻 Developer
+
+<div align="center">
+
+## Kunal
+
+Android Developer passionate about:
+
+* Kotlin Development
+* Jetpack Compose
+* Firebase Integration
+* Modern Android UI/UX
+* AI Integrated Applications
+
+</div>
+
+---
+
+# ⭐ Support
+
+If you like this project:
+
+⭐ Star the repository
+🍴 Fork the project
+📢 Share with others
+
+---
+
+<div align="center">
+
+### ❤️ Made with Kotlin, Firebase & Jetpack Compose
+
+</div>
+```
