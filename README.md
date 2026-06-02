@@ -1,190 +1,160 @@
-```html
-<h1 align="center">💬 KChat</h1>
+<div align="center">
 
-<h3 align="center">
-Modern Real-Time Android Chat Application built with Kotlin & Jetpack Compose
-</h3>
+# 💬 KChat
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Kotlin-2.0-blue?style=for-the-badge&logo=kotlin"/>
-  <img src="https://img.shields.io/badge/Jetpack%20Compose-Modern-green?style=for-the-badge"/>
-  <img src="https://img.shields.io/badge/Firebase-Backend-orange?style=for-the-badge&logo=firebase"/>
-  <img src="https://img.shields.io/badge/MVVM-Architecture-purple?style=for-the-badge"/>
-</p>
+### Modern Real-Time Android Chat Application built with Kotlin & Jetpack Compose
 
----
+<img src="https://img.shields.io/badge/Kotlin-2.0-blueviolet?style=for-the-badge&logo=kotlin"/>
+<img src="https://img.shields.io/badge/Jetpack%20Compose-Modern%20UI-4285F4?style=for-the-badge&logo=jetpackcompose"/>
+<img src="https://img.shields.io/badge/Firebase-Realtime-orange?style=for-the-badge&logo=firebase"/>
+<img src="https://img.shields.io/badge/MVVM-Architecture-success?style=for-the-badge"/>
+<img src="https://img.shields.io/badge/Platform-Android-green?style=for-the-badge&logo=android"/>
 
-<h2 align="center">✨ Overview</h2>
+<br>
 
-KChat is a modern real-time messaging application built using Kotlin, Jetpack Compose, and Firebase following MVVM architecture.
+> 🚀 A beautifully designed real-time messaging app with modern UI, image sharing, group chats, friend system, and Firebase-powered realtime communication.
 
-The application focuses on:
-- Real-time communication
-- Modern UI/UX
-- Smooth performance
-- Secure authentication
-- Media sharing
-- Video & voice communication
-- Group messaging
+</div>
 
 ---
 
-<h2 align="center">🚀 Features</h2>
+# ✨ Features
 
-✅ Real-time Personal Chat  
-✅ Real-time Group Chat  
-✅ Firebase Authentication  
-✅ Google Sign-In  
-✅ Image Sharing  
-✅ Friend Request System  
-✅ User Search  
-✅ Profile Customization  
-✅ Cloud Storage Integration  
-✅ Push Notifications (FCM)  
-✅ Voice Calling  
-✅ Video Calling  
-✅ Modern Compose UI  
-✅ MVVM Architecture  
-✅ Responsive Design  
+## 🔐 Authentication
+- Firebase Authentication
+- Secure Login & Signup
+- Persistent Sessions
+
+## 💬 Real-Time Chat
+- Instant Messaging
+- Real-Time Sync
+- One-to-One Chat
+- Group Chat Support
+- Clear Chat Feature
+- Delete for Everyone
+
+## 👥 Friend System
+- Add Friends
+- Friend Requests
+- Accept / Reject Requests
+- Unfriend Feature
+
+## 🖼 Media Sharing
+- Image Sharing
+- Camera & Gallery Support
+- Firebase Cloud Storage
+
+## 🔔 Notifications
+- Push Notifications using FCM
+- Real-Time Message Alerts
+
+## 🎨 Modern UI/UX
+- Jetpack Compose UI
+- Smooth Dark Theme
+- Responsive Layouts
+- Modern Bottom Sheets
+- Improved Realtime Experience
 
 ---
 
-<h2 align="center">📥 Download APK</h2>
+# 📱 App Screenshots
 
-<p align="center">
-  <a href="YOUR_APK_LINK_HERE">
-    <img src="https://img.shields.io/badge/Download-KChat_APK-success?style=for-the-badge&logo=android"/>
-  </a>
-</p>
+<div align="center">
+
+<table>
+<tr>
+<td align="center">
+
+## 🔑 Login Screen
+
+<img src="assets/screenshots/LoginScreen.jpg" width="230"/>
+
+</td>
+
+<td align="center">
+
+## 🏠 Home Screen
+
+<img src="assets/screenshots/HomeScreen.jpg" width="230"/>
+
+</td>
+
+<td align="center">
+
+## 💬 Personal Chat
+
+<img src="assets/screenshots/ChattingScreen.jpg" width="230"/>
+
+</td>
+</tr>
+
+<tr>
+<td align="center">
+
+## 👥 Group Chat
+
+<img src="assets/screenshots/GroupChatScreen.jpg" width="230"/>
+
+</td>
+
+<td align="center">
+
+## ➕ Add Friends
+
+<img src="assets/screenshots/AddFriendScreen.jpg" width="230"/>
+
+</td>
+
+<td align="center">
+
+## 📩 Friend Requests
+
+<img src="assets/screenshots/FriendRequestScreen.jpg" width="230"/>
+
+</td>
+</tr>
+
+<tr>
+<td align="center" colspan="3">
+
+## ⚙️ Profile Options
+
+<img src="assets/screenshots/ProfileOptionScreen.jpg" width="230"/>
+
+</td>
+</tr>
+
+</table>
+
+</div>
 
 ---
 
-<h2 align="center">🛠️ Tech Stack</h2>
+# 🛠 Tech Stack
 
 | Technology | Usage |
 |------------|-------|
-| Kotlin | Main Language |
-| Jetpack Compose | UI Toolkit |
+| Kotlin | Main Programming Language |
+| Jetpack Compose | Modern Android UI |
 | Firebase Auth | Authentication |
-| Firebase Realtime Database | Real-time Messaging |
-| Firebase Storage | Image Sharing |
+| Firebase Realtime Database | Real-Time Data |
+| Firebase Storage | Image Storage |
 | Firebase Cloud Messaging | Push Notifications |
-| MVVM | Architecture Pattern |
-| Volley | Network Operations |
+| MVVM Architecture | Clean Architecture |
+| Coil | Image Loading |
+| Hilt | Dependency Injection |
 
 ---
 
-<h2 align="center">📸 App Screenshots</h2>
+# 🏗 Architecture
 
-<h3 align="center">🔐 Authentication</h3>
+KChat follows modern **MVVM Architecture** for scalable and maintainable development.
 
-<p align="center">
-  <img src="assets/screenshots/LoginScreen.jpg" width="250"/>
-</p>
-
----
-
-<h3 align="center">🏠 Main Features</h3>
-
-<table align="center">
-<tr>
-
-<td align="center">
-<img src="assets/screenshots/HomeScreen.jpg" width="230"/>
-<br><br>
-<b>Home Screen</b>
-</td>
-
-<td align="center">
-<img src="assets/screenshots/AddFriendScreen.jpg" width="230"/>
-<br><br>
-<b>Add Friends</b>
-</td>
-
-<td align="center">
-<img src="assets/screenshots/FriendRequestScreen.jpg" width="230"/>
-<br><br>
-<b>Friend Requests</b>
-</td>
-
-</tr>
-</table>
-
----
-
-<h3 align="center">💬 Chat Experience</h3>
-
-<table align="center">
-<tr>
-
-<td align="center">
-<img src="assets/screenshots/ChattingScreen.jpg" width="230"/>
-<br><br>
-<b>Personal Chat</b>
-</td>
-
-<td align="center">
-<img src="assets/screenshots/GroupChatScreen.jpg" width="230"/>
-<br><br>
-<b>Group Chat</b>
-</td>
-
-<td align="center">
-<img src="assets/screenshots/ProfileOptionScreen.jpg" width="230"/>
-<br><br>
-<b>Profile Options</b>
-</td>
-
-</tr>
-</table>
-
----
-
-<h2 align="center">⚡ Performance Highlights</h2>
-
-✅ Smooth Realtime Sync  
-✅ Modern Compose UI  
-✅ Responsive Layouts  
-✅ Optimized Firebase Usage  
-✅ Fast Image Loading  
-✅ Clean MVVM Architecture  
-✅ Lightweight User Experience  
-
----
-
-<h2 align="center">🔥 Current Capabilities</h2>
-
-- Realtime Messaging
-- Group Communication
-- Image Sharing
-- Push Notifications
-- Voice Calling
-- Video Calling
-- User Search
-- Friend Management
-- Firebase Integration
-
----
-
-<h2 align="center">👨‍💻 Developer</h2>
-
-<h3 align="center">Kunal</h3>
-
-<p align="center">
-Android Developer passionate about Kotlin, Jetpack Compose, Firebase, AI integrations, and modern Android development.
-</p>
-
----
-
-<h2 align="center">⭐ Support</h2>
-
-<p align="center">
-If you like this project, consider giving it a ⭐ on GitHub.
-</p>
-
----
-
-<h3 align="center">
-Made with ❤️ using Kotlin & Firebase
-</h3>
-```
+```text
+UI (Jetpack Compose)
+        ↓
+     ViewModel
+        ↓
+     Repository
+        ↓
+ Firebase Services
