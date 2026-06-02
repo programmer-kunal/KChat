@@ -1,4 +1,4 @@
-````md
+
 <div align="center">
 
 # 💬 KChat
@@ -239,4 +239,3 @@ If you like this project:
 ### ❤️ Made with Kotlin, Firebase & Jetpack Compose
 
 </div>
-```
