@@ -12,7 +12,7 @@
 
 <br>
 
-> 🚀 A beautifully designed real-time messaging app with modern UI, image sharing, friend system, group chats, push notifications, and Firebase integration.
+> 🚀 A beautifully designed real-time messaging app with modern UI, image sharing, group chats, friend system, and Firebase-powered realtime communication.
 
 </div>
 
@@ -23,29 +23,25 @@
 ## 🔐 Authentication
 - Firebase Authentication
 - Secure Login & Signup
-- Persistent User Sessions
+- Persistent Sessions
 
-## 💬 Real-Time Messaging
-- Instant One-to-One Chat
-- Real-Time Message Sync
-- Modern Chat UI
+## 💬 Real-Time Chat
+- Instant Messaging
+- Real-Time Sync
+- One-to-One Chat
+- Group Chat Support
 - Clear Chat Feature
-- Delete for Everyone Support
+- Delete for Everyone
 
 ## 👥 Friend System
 - Add Friends
-- Friend Request System
+- Friend Requests
+- Accept / Reject Requests
 - Unfriend Feature
-- Dynamic Chat Management
-
-## 👨‍👩‍👧‍👦 Group Chat
-- Real-Time Group Messaging
-- Multiple User Communication
-- Dedicated Group Interface
 
 ## 🖼 Media Sharing
-- Image Sharing Support
-- Gallery & Camera Integration
+- Image Sharing
+- Camera & Gallery Support
 - Firebase Cloud Storage
 
 ## 🔔 Notifications
@@ -54,11 +50,10 @@
 
 ## 🎨 Modern UI/UX
 - Jetpack Compose UI
-- Smooth Animations
-- Beautiful Dark Theme
-- Responsive Layout
-- Enhanced Bottom Sheets
-- Modern Action Top Bars
+- Smooth Dark Theme
+- Responsive Layouts
+- Modern Bottom Sheets
+- Improved Realtime Experience
 
 ---
 
@@ -66,45 +61,70 @@
 
 <div align="center">
 
-## 🔑 Authentication
+<table>
+<tr>
+<td align="center">
 
-<img src="assets/screenshots/LoginScreen.jpg" width="250"/>
+## 🔑 Login Screen
 
----
+<img src="assets/screenshots/LoginScreen.jpg" width="230"/>
+
+</td>
+
+<td align="center">
 
 ## 🏠 Home Screen
 
-<img src="assets/screenshots/HomeScreen.jpg" width="250"/>
+<img src="assets/screenshots/HomeScreen.jpg" width="230"/>
 
----
+</td>
+
+<td align="center">
 
 ## 💬 Personal Chat
 
-<img src="assets/screenshots/ChattingScreen.jpg" width="250"/>
+<img src="assets/screenshots/ChattingScreen.jpg" width="230"/>
 
----
+</td>
+</tr>
+
+<tr>
+<td align="center">
 
 ## 👥 Group Chat
 
-<img src="assets/screenshots/GroupChatScreen.jpg" width="250"/>
+<img src="assets/screenshots/GroupChatScreen.jpg" width="230"/>
 
----
+</td>
+
+<td align="center">
 
 ## ➕ Add Friends
 
-<img src="assets/screenshots/AddFriendScreen.jpg" width="250"/>
+<img src="assets/screenshots/AddFriendScreen.jpg" width="230"/>
 
----
+</td>
+
+<td align="center">
 
 ## 📩 Friend Requests
 
-<img src="assets/screenshots/FriendRequestScreen.jpg" width="250"/>
+<img src="assets/screenshots/FriendRequestScreen.jpg" width="230"/>
 
----
+</td>
+</tr>
+
+<tr>
+<td align="center" colspan="3">
 
 ## ⚙️ Profile Options
 
-<img src="assets/screenshots/ProfileOptionScreen.jpg" width="250"/>
+<img src="assets/screenshots/ProfileOptionScreen.jpg" width="230"/>
+
+</td>
+</tr>
+
+</table>
 
 </div>
 
@@ -128,13 +148,13 @@
 
 # 🏗 Architecture
 
-KChat follows **MVVM (Model-View-ViewModel)** architecture for scalable and maintainable development.
+KChat follows modern **MVVM Architecture** for scalable and maintainable development.
 
 ```text
-UI (Compose)
-   ↓
-ViewModel
-   ↓
-Repository
-   ↓
-Firebase Services
+UI (Jetpack Compose)
+        ↓
+     ViewModel
+        ↓
+     Repository
+        ↓
+ Firebase Services
