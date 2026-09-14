@@ -24,7 +24,7 @@
 ### 📥 Download & Try KChat
 
 <p align="center">
-  <a href="https://drive.google.com/drive/folders/1RB-iQOIvo52ucmvXW4rn5lG9Vo4NQUr" target="_blank">
+  <a href="https://drive.google.com/drive/folders/1RB-iQOIvo52ucmvXW4rn5lG9Vo4NQUrR" target="_blank">
     <img src="https://img.shields.io/badge/%E2%AD%90%20DOWNLOAD%20LATEST%20RELEASE%20APK%20(Google%20Drive)-34A853?style=for-the-badge&logo=googledrive&logoColor=white&labelColor=1A73E8" alt="Download Latest Release APK" height="46"/>
   </a>
   <br/>
@@ -301,7 +301,7 @@ Selected Messages ──► SmartReplyViewModel ──► GeminiSmartReplyServic
 Install the latest production build on any Android device running Android 8.0+ (API 26+):
 
 <p align="center">
-  <a href="https://drive.google.com/drive/folders/1RB-iQOIvo52ucmvXW4rn5lG9Vo4NQUr" target="_blank">
+  <a href="https://drive.google.com/drive/folders/1RB-iQOIvo52ucmvXW4rn5lG9Vo4NQUrR" target="_blank">
     <img src="https://img.shields.io/badge/%F0%9F%93%A5%20Download%20KChat%20Release%20APK-Google%20Drive-34A853?style=for-the-badge&logo=googledrive&logoColor=white&labelColor=1A73E8" alt="Download APK" height="42"/>
   </a>
 </p>
@@ -370,5 +370,5 @@ If KChat inspires your Android or AI exploration:
 ---
 
 <div align="center">
-  <sub>Built by <a href="https://github.com/programmer-kunal">Kunal Gupta</a> • KChat: <i>Don't just deliver the conversation. Understand the conversation.</i></sub>
+  <sub>Built by <a href="https://github.com/programmer-kunal">KUNAL</a> • KChat: <i>Don't just deliver the conversation. Understand the conversation.</i></sub>
 </div>
