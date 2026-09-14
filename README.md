@@ -1,241 +1,139 @@
-
-<div align="center">
-
 # 💬 KChat
 
-### Modern Real-Time Android Chat Application built with Kotlin & Jetpack Compose
+### 🚀 From Chat to Context
 
-<img src="https://img.shields.io/badge/Kotlin-2.0-blueviolet?style=for-the-badge&logo=kotlin"/>
-<img src="https://img.shields.io/badge/Jetpack%20Compose-Modern%20UI-4285F4?style=for-the-badge&logo=jetpackcompose"/>
-<img src="https://img.shields.io/badge/Firebase-Realtime-orange?style=for-the-badge&logo=firebase"/>
-<img src="https://img.shields.io/badge/MVVM-Architecture-success?style=for-the-badge"/>
-<img src="https://img.shields.io/badge/Platform-Android-green?style=for-the-badge&logo=android"/>
+> **KChat is a modern real-time Android communication platform that combines messaging, media sharing, voice/video calling, and contextual AI assistance — built with Kotlin, Jetpack Compose, Firebase, and Gemini.**
 
-<br>
-
-> 🚀 A beautifully designed real-time messaging app with modern UI, image sharing, group chats, friend system, voice/video calling, and Firebase-powered realtime communication.
-
-<br>
-
-<a href="https://drive.google.com/drive/folders/1RB-iQOIvo52ucmvXW4rn5lG9Vo4NQUrR">
-<img src="https://img.shields.io/badge/📥_Download_KChat_APK-2ea44f?style=for-the-badge&logo=android&logoColor=white"/>
-</a>
-
-</div>
+KChat started as a real-time communication application and evolved toward a **context-centric communication experience**, where AI can understand conversational context and assist users directly inside the chat workflow.
 
 ---
 
-# ✨ Features
+## ✨ What Makes KChat Different?
 
-## 🔐 Authentication
-- Firebase Authentication
-- Secure Login & Signup
-- Google Sign-In
-- Persistent Sessions
+Most messaging applications focus on:
 
-## 💬 Real-Time Chat
-- Instant Messaging
-- Real-Time Sync
-- One-to-One Chat
-- Group Chat Support
-- Clear Chat Feature
-- Delete for Everyone
-- Message Status Updates
+**Send → Receive → Reply**
 
-## 📞 Communication
-- Voice Calling
-- Video Calling
-- Realtime Call Handling
+KChat moves toward:
 
-## 👥 Friend System
-- Add Friends
-- Friend Requests
-- Accept / Reject Requests
-- Unfriend Feature
-- User Search
+**Send → Understand → Assist → Reply**
 
-## 🖼 Media Sharing
-- Image Sharing
-- Camera & Gallery Support
-- Firebase Cloud Storage
+The goal is not to replace the user.
 
-## 🔔 Notifications
-- Push Notifications using FCM
-- Real-Time Message Alerts
-
-## 🎨 Modern UI/UX
-- Jetpack Compose UI
-- Smooth Dark Theme
-- Responsive Layouts
-- Modern Bottom Sheets
-- Improved Realtime Experience
-- Optimized Chat Experience
+The goal is to provide **context-aware assistance while keeping the user in control.**
 
 ---
 
-# 📱 App Screenshots
+# 🤖 KChat Smart Reply
 
-<div align="center">
+## Emotion & Sentiment Intelligence
 
-<table>
-<tr>
-<td align="center">
+KChat Smart Reply is an AI-powered conversational assistance feature designed to understand the context of selected messages and generate concise, natural reply suggestions.
 
-## 🔑 Login Screen
+Instead of forcing users to manually formulate every response, KChat analyzes the selected conversation and considers:
 
-<img src="assets/screenshots/LoginScreen.jpg" width="230"/>
+- 🧠 Conversational context
+- 😊 Likely tone
+- 💭 Sentiment
+- 🎯 Intent
+- ⚡ Urgency
 
-</td>
+It then generates multiple reply suggestions that the user can review, edit, and send.
 
-<td align="center">
+### 🔐 Human Always in Control
 
-## 🏠 Home Screen
+KChat Smart Reply **never automatically sends an AI-generated message.**
 
-<img src="assets/screenshots/HomeScreen.jpg" width="230"/>
+The user always:
 
-</td>
+**Selects → Reviews → Edits → Sends**
 
-<td align="center">
-
-## 💬 Personal Chat
-
-<img src="assets/screenshots/ChattingScreen.jpg" width="230"/>
-
-</td>
-</tr>
-
-<tr>
-<td align="center">
-
-## 👥 Group Chat
-
-<img src="assets/screenshots/GroupChatScreen.jpg" width="230"/>
-
-</td>
-
-<td align="center">
-
-## ➕ Add Friends
-
-<img src="assets/screenshots/AddFriendScreen.jpg" width="230"/>
-
-</td>
-
-<td align="center">
-
-## 📩 Friend Requests
-
-<img src="assets/screenshots/FriendRequestScreen.jpg" width="230"/>
-
-</td>
-</tr>
-
-<tr>
-<td align="center" colspan="3">
-
-## ⚙️ Profile Options
-
-<img src="assets/screenshots/ProfileOptionScreen.jpg" width="230"/>
-
-</td>
-</tr>
-
-</table>
-
-</div>
+This keeps AI assistance useful while preserving human control over communication.
 
 ---
 
-# 🛠 Tech Stack
+## 📱 Smart Reply in Action
 
-| Technology | Usage |
-|------------|-------|
-| Kotlin | Main Programming Language |
-| Jetpack Compose | Modern Android UI |
-| Firebase Auth | Authentication |
-| Firebase Realtime Database | Real-Time Data |
-| Firebase Storage | Image Storage |
-| Firebase Cloud Messaging | Push Notifications |
-| MVVM Architecture | Clean Architecture |
-| Coil | Image Loading |
-| Hilt | Dependency Injection |
-| Volley | Network Operations |
+<p align="center">
+  <img src="assets/screenshots/KChatSmartReplyScreen.jpg" width="320">
+</p>
+
+<p align="center">
+  <b>KChat Smart Reply — Context-aware AI assistance inside the conversation</b>
+</p>
 
 ---
 
-# ⚡ Performance Highlights
+## 🧠 How Smart Reply Works
 
-- Optimized Firebase Realtime Updates
-- Smooth Compose UI Rendering
-- Fast Image Loading
-- Responsive UI Components
-- Lightweight Modern Design
-- Efficient State Management
-- Improved Realtime Synchronization
+### 1️⃣ Select Conversational Context
+
+Long-press a message inside a direct conversation and select one or more messages.
+
+<p align="center">
+  <img src="assets/screenshots/SmartReplySelection.jpg" width="280">
+</p>
+
+KChat uses the selected messages as the conversational context for AI analysis.
 
 ---
 
-# 🏗 Architecture
+### 2️⃣ Understand the Conversation
 
-KChat follows modern **MVVM Architecture** for scalable and maintainable development.
+KChat analyzes the selected context and estimates:
+
+| Intelligence | Purpose |
+|---|---|
+| 😊 Tone | Understands the likely communication tone |
+| 💭 Sentiment | Identifies the overall sentiment |
+| 🎯 Intent | Determines what the conversation is trying to communicate |
+| ⚡ Urgency | Estimates whether the response requires immediate attention |
+
+The result is presented as a **probabilistic interpretation**, rather than claiming to know the user's actual emotional state.
+
+<p align="center">
+  <img src="assets/screenshots/SmartReplyAnalysis.jpg" width="300">
+</p>
+
+---
+
+### 3️⃣ Generate Natural Reply Suggestions
+
+KChat generates several concise reply options based on the selected conversational context.
+
+<p align="center">
+  <img src="assets/screenshots/SmartReplySuggestions.jpg" width="300">
+</p>
+
+The user can choose the suggestion that best fits the conversation.
+
+The selected reply is inserted into the existing message composer, where it can be edited before sending.
+
+---
+
+# 🔄 Smart Reply Workflow
 
 ```text
-UI (Jetpack Compose)
-        ↓
-     ViewModel
-        ↓
-     Repository
-        ↓
- Firebase Services
-````
-
----
-
-# 🚀 Current Capabilities
-
-✅ Real-Time Messaging
-✅ Group Communication
-✅ Image Sharing
-✅ Push Notifications
-✅ Voice Calling
-✅ Video Calling
-✅ Friend Management
-✅ User Search
-✅ Firebase Integration
-✅ Modern Compose UI
-
----
-
-# 👨‍💻 Developer
-
-<div align="center">
-
-## Kunal
-
-Android Developer passionate about:
-
-* Kotlin Development
-* Jetpack Compose
-* Firebase Integration
-* Modern Android UI/UX
-* AI Integrated Applications
-
-</div>
-
----
-
-# ⭐ Support
-
-If you like this project:
-
-⭐ Star the repository
-🍴 Fork the project
-📢 Share with others
-
----
-
-<div align="center">
-
-### ❤️ Made with Kotlin, Firebase & Jetpack Compose
-
-</div>
+┌─────────────────────┐
+│  Select Messages    │
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│ Analyze Context     │
+│ • Tone              │
+│ • Sentiment         │
+│ • Intent            │
+│ • Urgency           │
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│ Generate Suggestions│
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│ User Reviews / Edits│
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│ Existing Send Button│
+└─────────────────────┘
