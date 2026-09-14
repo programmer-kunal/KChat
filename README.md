@@ -1,139 +1,97 @@
+<div align="center">
+
 # 💬 KChat
 
-### 🚀 From Chat to Context
+### From Chat to Context
 
-> **KChat is a modern real-time Android communication platform that combines messaging, media sharing, voice/video calling, and contextual AI assistance — built with Kotlin, Jetpack Compose, Firebase, and Gemini.**
+**A modern real-time Android messaging application with context-aware AI assistance, secure communication, media sharing, group conversations, and voice/video calling.**
 
-KChat started as a real-time communication application and evolved toward a **context-centric communication experience**, where AI can understand conversational context and assist users directly inside the chat workflow.
+<br>
+
+<img src="https://img.shields.io/badge/Kotlin-2.0-blueviolet?style=for-the-badge&logo=kotlin"/>
+<img src="https://img.shields.io/badge/Jetpack%20Compose-Modern%20UI-4285F4?style=for-the-badge&logo=jetpackcompose"/>
+<img src="https://img.shields.io/badge/Firebase-Realtime-orange?style=for-the-badge&logo=firebase"/>
+<img src="https://img.shields.io/badge/Firebase%20AI%20Logic-Gemini-4285F4?style=for-the-badge&logo=google"/>
+<img src="https://img.shields.io/badge/MVVM-Architecture-success?style=for-the-badge"/>
+<img src="https://img.shields.io/badge/Platform-Android-green?style=for-the-badge&logo=android"/>
+
+<br><br>
+
+<a href="https://drive.google.com/drive/folders/1RB-iQOIvo52ucmvXW4rn5lG9Vo4NQUrR">
+
+<img src="https://img.shields.io/badge/📥%20DOWNLOAD%20KCHAT%20APK-2ea44f?style=for-the-badge&logo=android&logoColor=white"/>
+
+</a>
+
+<br>
+
+**Download the latest signed APK and experience KChat directly on Android.**
+
+</div>
 
 ---
 
-## ✨ What Makes KChat Different?
+# 🌟 What is KChat?
 
-Most messaging applications focus on:
+KChat is a modern Android communication platform designed to go beyond traditional messaging.
 
-**Send → Receive → Reply**
+Most chat applications focus on:
+
+> **Send → Receive → Reply**
 
 KChat moves toward:
 
-**Send → Understand → Assist → Reply**
+> **Send → Understand → Assist → Communicate**
 
-The goal is not to replace the user.
+The goal is to transform messaging from a simple communication tool into a **context-aware communication experience**.
 
-The goal is to provide **context-aware assistance while keeping the user in control.**
+KChat combines real-time communication with modern Android development and AI-assisted interaction while keeping the user in control.
+
+---
+
+# 🚀 Why KChat?
+
+Traditional messaging applications primarily focus on message delivery.
+
+KChat focuses on the **context surrounding those messages**.
+
+| Traditional Chat | KChat |
+|---|---|
+| Message-centric | Context-centric |
+| Send & receive messages | Understand conversation context |
+| Manual reply creation | AI-assisted reply suggestions |
+| Basic communication | Intelligent communication |
+| Reactive experience | Context-aware assistance |
+| Static interaction | Adaptive interaction |
+| Communication only | Communication + Intelligence |
 
 ---
 
 # 🤖 KChat Smart Reply
 
-## Emotion & Sentiment Intelligence
+## 🧠 Emotion & Sentiment Intelligence
 
-KChat Smart Reply is an AI-powered conversational assistance feature designed to understand the context of selected messages and generate concise, natural reply suggestions.
+One of the key AI capabilities of KChat is **Smart Reply**, designed to help users understand the tone and context of selected messages before composing a response.
 
-Instead of forcing users to manually formulate every response, KChat analyzes the selected conversation and considers:
+Instead of blindly generating a reply, KChat first analyzes the selected conversation context.
 
-- 🧠 Conversational context
-- 😊 Likely tone
-- 💭 Sentiment
-- 🎯 Intent
-- ⚡ Urgency
-
-It then generates multiple reply suggestions that the user can review, edit, and send.
-
-### 🔐 Human Always in Control
-
-KChat Smart Reply **never automatically sends an AI-generated message.**
-
-The user always:
-
-**Selects → Reviews → Edits → Sends**
-
-This keeps AI assistance useful while preserving human control over communication.
-
----
-
-## 📱 Smart Reply in Action
-
-<p align="center">
-  <img src="assets/screenshots/KChatSmartReplyScreen.jpg" width="320">
-</p>
-
-<p align="center">
-  <b>KChat Smart Reply — Context-aware AI assistance inside the conversation</b>
-</p>
-
----
-
-## 🧠 How Smart Reply Works
-
-### 1️⃣ Select Conversational Context
-
-Long-press a message inside a direct conversation and select one or more messages.
-
-<p align="center">
-  <img src="assets/screenshots/SmartReplySelection.jpg" width="280">
-</p>
-
-KChat uses the selected messages as the conversational context for AI analysis.
-
----
-
-### 2️⃣ Understand the Conversation
-
-KChat analyzes the selected context and estimates:
-
-| Intelligence | Purpose |
-|---|---|
-| 😊 Tone | Understands the likely communication tone |
-| 💭 Sentiment | Identifies the overall sentiment |
-| 🎯 Intent | Determines what the conversation is trying to communicate |
-| ⚡ Urgency | Estimates whether the response requires immediate attention |
-
-The result is presented as a **probabilistic interpretation**, rather than claiming to know the user's actual emotional state.
-
-<p align="center">
-  <img src="assets/screenshots/SmartReplyAnalysis.jpg" width="300">
-</p>
-
----
-
-### 3️⃣ Generate Natural Reply Suggestions
-
-KChat generates several concise reply options based on the selected conversational context.
-
-<p align="center">
-  <img src="assets/screenshots/SmartReplySuggestions.jpg" width="300">
-</p>
-
-The user can choose the suggestion that best fits the conversation.
-
-The selected reply is inserted into the existing message composer, where it can be edited before sending.
-
----
-
-# 🔄 Smart Reply Workflow
+### Smart Reply workflow
 
 ```text
-┌─────────────────────┐
-│  Select Messages    │
-└──────────┬──────────┘
-           ↓
-┌─────────────────────┐
-│ Analyze Context     │
-│ • Tone              │
-│ • Sentiment         │
-│ • Intent            │
-│ • Urgency           │
-└──────────┬──────────┘
-           ↓
-┌─────────────────────┐
-│ Generate Suggestions│
-└──────────┬──────────┘
-           ↓
-┌─────────────────────┐
-│ User Reviews / Edits│
-└──────────┬──────────┘
-           ↓
-┌─────────────────────┐
-│ Existing Send Button│
-└─────────────────────┘
+User selects messages
+        ↓
+Conversation context extracted
+        ↓
+AI analyzes:
+• Tone
+• Sentiment
+• Intent
+• Urgency
+        ↓
+Context-aware suggestions generated
+        ↓
+User reviews suggestions
+        ↓
+User can edit the suggestion
+        ↓
+Existing Send button
