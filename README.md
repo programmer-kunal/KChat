@@ -801,7 +801,7 @@ KChat is built around one idea:
 
 ### **Kunal**
 
-**Android Developer • AI Application Builder**
+**Android Developer • Application Builder**
 
 <br/>
 
