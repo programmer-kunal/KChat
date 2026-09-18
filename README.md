@@ -1,360 +1,1239 @@
 <div align="center">
 
-  <img src="assets/screenshots/KChatLogo.png" width="100" height="100" alt="KChat Official Logo" />
+<img src="assets/screenshots/KChatLogo.png" alt="KChat Logo" width="100"/>
 
-  # 💭 KChat
-  ### 🚀 *From Chat to Context — Intelligent Real-Time Communication Platform*
+# 💬 KChat
 
-  <p align="center">
-    <b>A Modern, Context-Aware Android Communication System</b><br/>
-    <i>Elevating mobile messaging by pairing instant communication with on-demand Generative AI.</i>
-  </p>
+### 🚀 From Chat to Context
 
-  <p align="center">
-    <a href="https://developer.android.com"><img src="https://img.shields.io/badge/Platform-Android_8.0+_(API_26+)-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Platform: Android" /></a>
-    <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.0-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin 2.0" /></a>
-    <a href="https://developer.android.com/jetpack/compose"><img src="https://img.shields.io/badge/Jetpack_Compose-Material_3-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Jetpack Compose Material 3" /></a>
-    <a href="https://firebase.google.com"><img src="https://img.shields.io/badge/Firebase-Auth_|_RTDB_|_FCM-FFCA28?style=for-the-badge&logo=firebase&logoColor=black" alt="Firebase Services" /></a>
-    <br/>
-    <a href="https://ai.google.dev"><img src="https://img.shields.io/badge/AI_Engine-Gemini_3.5_Flash--Lite-8E75C2?style=for-the-badge&logo=googlegemini&logoColor=white" alt="Google Gemini AI" /></a>
-    <a href="https://supabase.com"><img src="https://img.shields.io/badge/Storage-Supabase_Cloud-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" alt="Supabase Storage" /></a>
-    <a href="https://www.zegocloud.com"><img src="https://img.shields.io/badge/ZegoCloud-HD_Voice_&_Video_Calls-007FFF?style=for-the-badge" alt="ZegoCloud Calling" /></a>
-    <a href="https://cloud.google.com/recaptcha-enterprise"><img src="https://img.shields.io/badge/Security-reCAPTCHA_Enterprise-EA4335?style=for-the-badge&logo=googlecloud&logoColor=white" alt="reCAPTCHA Enterprise" /></a>
-  </p>
+**Real-Time Communication × Context Intelligence × Modern Android**
 
-  <br/>
+<br/>
 
-  <!-- Hero CTA Download Box -->
-  <table align="center" style="border-collapse: collapse; border: 2px solid #1A73E8; border-radius: 12px; background: #0D1117;">
-    <tr>
-      <td align="center" style="padding: 14px 24px;">
-        <h4 style="margin: 0 0 8px 0; color: #58A6FF;">📲 Experience KChat on Android</h4>
-        <a href="https://drive.google.com/drive/folders/1RB-iQOIvo52ucmvXW4rn5lG9Vo4NQUrR" target="_blank">
-          <img src="https://img.shields.io/badge/%E2%AD%90%20DOWNLOAD%20LATEST%20RELEASE%20APK%20(GOOGLE%20DRIVE)-34A853?style=for-the-badge&logo=googledrive&logoColor=white&labelColor=1A73E8" alt="Download Latest Release APK" height="42"/>
-        </a>
-        <br/><br/>
-        <sub style="color: #8B949E;"><b>Direct Download:</b> Production Signed Release APK (<code>arm64-v8a</code>, Android 8.0+) • Protected by Firebase App Check & reCAPTCHA Enterprise</sub>
-      </td>
-    </tr>
-  </table>
+<a href="https://github.com/programmer-kunal/KChat">
+<img src="https://img.shields.io/badge/KChat-Android_App-3DDC84?style=for-the-badge&logo=android&logoColor=white"/>
+</a>
+<a href="https://kotlinlang.org/">
+<img src="https://img.shields.io/badge/Kotlin-2.0-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white"/>
+</a>
+<a href="https://developer.android.com/jetpack/compose">
+<img src="https://img.shields.io/badge/Jetpack_Compose-Material_3-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white"/>
+</a>
+<a href="https://firebase.google.com/">
+<img src="https://img.shields.io/badge/Firebase-Auth_%7C_RTDB_%7C_FCM-FFCA28?style=for-the-badge&logo=firebase&logoColor=black"/>
+</a>
+<a href="https://firebase.google.com/docs/ai-logic">
+<img src="https://img.shields.io/badge/Firebase_AI_Logic-Gemini-4285F4?style=for-the-badge&logo=google&logoColor=white"/>
+</a>
+<a href="https://ai.google.dev/">
+<img src="https://img.shields.io/badge/Gemini-3.5_Flash--Lite-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white"/>
+</a>
+
+<br/>
+
+<a href="https://www.zegocloud.com/">
+<img src="https://img.shields.io/badge/ZEGOCLOUD-Voice_%26_Video-6C3DF5?style=for-the-badge"/>
+</a>
+<a href="https://supabase.com/">
+<img src="https://img.shields.io/badge/Supabase-Storage-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white"/>
+</a>
+<a href="https://developer.android.com/topic/architecture">
+<img src="https://img.shields.io/badge/Architecture-MVVM-00A86B?style=for-the-badge"/>
+</a>
+<a href="https://github.com/programmer-kunal/KChat">
+<img src="https://img.shields.io/github/stars/programmer-kunal/KChat?style=for-the-badge&logo=github&label=Stars"/>
+</a>
+
+<br/><br/>
+
+### 💬 Real-Time Communication + 🤖 Contextual AI
+
+<p>
+KChat is a modern Android communication platform that combines
+<b>real-time messaging, multimedia communication, calling, and contextual AI assistance</b>.
+</p>
+
+<p>
+The core idea is simple:
+<br/>
+<b>Don't just deliver the conversation. Understand the conversation.</b>
+</p>
+
+<br/>
+
+<a href="https://drive.google.com/drive/folders/1RB-iQOIvo52ucmvXW4rn5l9Vo4NQUrR">
+<img src="https://img.shields.io/badge/📥_DOWNLOAD_LATEST_RELEASE_APK-Google_Drive-34A853?style=for-the-badge&logo=googledrive&logoColor=white"/>
+</a>
+
+<br/><br/>
+
+<sub>Signed Release APK • arm64-v8a • Firebase App Check • reCAPTCHA Enterprise</sub>
 
 </div>
 
-<br/>
-
 ---
 
-## 🌟 The Core Paradigm: *From Chat to Context*
+# 🌟 From Chat to Context
 
-Traditional messaging applications are **message-transfer pipes** where conversations quickly become noisy, burying crucial decisions, deadlines, emotional nuances, and scam attempts:
+Traditional messaging generally follows:
 
-$$\mathbf{Traditional:} \quad \text{Send} \;\longrightarrow\; \text{Receive} \;\longrightarrow\; \text{Reply}$$
-
-$$\mathbf{KChat:} \quad \text{Send} \;\longrightarrow\; \mathbf{Understand\;Context} \;\longrightarrow\; \mathbf{Assist\;In\text{-}Situ} \;\longrightarrow\; \text{Empower\;User}$$
-
-| Dimension | 📱 Traditional Chat Apps | 🚀 KChat (Context-Aware) |
-| :--- | :--- | :--- |
-| **System Focus** | Raw text relay pipe | Context understanding, safety analysis & synthesis |
-| **Long Discussions** | Tedious scrolling through hundreds of messages | **Thread Summary**: Instant extraction of decisions, tasks & deadlines |
-| **Search Engine** | Exact-string keyword matching | **Context Search**: Semantic intent-based natural language query |
-| **Conversational Nuance** | Guessed by user; tone misunderstood | **Smart Reply**: Tone, sentiment, intent & urgency estimation |
-| **Security Shield** | Reactive spam reporting after fraud occurs | **Scam Guard**: Real-time phishing, fraud & social engineering detection |
-| **User Control** | Generic bots or autocorrect | **100% Human-in-the-Loop**: AI suggests, user edits & manually sends |
-| **Data Privacy** | Background data harvesting / training | **Transient In-Memory**: Zero background scanning; App Check protected |
-
----
-
-<br/>
-
-## 🧠 The 4 Core AI Intelligence Features
-
-KChat features a unified intelligence suite powered by **Google Gemini 3.5 Flash-Lite** via **Firebase AI Logic**, accessible via a single tap on the ✨ **KChat AI** bottom sheet without exposing client-side API keys.
-
-```mermaid
-flowchart LR
-    A["💬 Select Messages"] --> B["✨ KChat AI Sheet"]
-    B --> C["🧠 Smart Reply"]
-    B --> D["📝 Thread Summary"]
-    B --> E["🔍 Context Search"]
-    B --> F["🛡️ Scam Guard"]
-    C & D & E & F --> G["Gemini 3.5 Flash-Lite"]
-    G --> H["100% User Review & Control"]
-
-    style B fill:#1F2430,stroke:#7F52FF,stroke-width:2px,color:#FFFFFF
-    style G fill:#0E1726,stroke:#4285F4,stroke-width:2px,color:#FFFFFF
-    style H fill:#0B2518,stroke:#34A853,stroke-width:2px,color:#FFFFFF
+```text
+Send
+  ↓
+Receive
+  ↓
+Reply
 ```
 
-<div align="center">
-  <table width="100%">
-    <tr>
-      <td align="center" width="50%">
-        <b>✨ KChat AI Engine Hub</b><br/><br/>
-        <img src="assets/screenshots/KChatAI_UI.jpg" width="230" alt="KChat AI Bottom Sheet Hub" /><br/><br/>
-        <sub>Central sheet providing on-demand access to all 4 intelligence features</sub>
-      </td>
-      <td align="center" width="50%">
-        <b>🧠 1. Smart Reply</b><br/><br/>
-        <img src="assets/screenshots/SmartReplyUI.jpg" width="230" alt="Smart Reply UI" /><br/><br/>
-        <sub>Analyzes tone, sentiment, intent & urgency with editable reply suggestions</sub>
-      </td>
-    </tr>
-  </table>
-</div>
+KChat extends that interaction:
 
-### 1. 🧠 Smart Reply (Emotion & Sentiment Intelligence)
-- **Multi-Factor Analysis**: Detects **Likely Tone** (*Friendly, Inquiring, Professional, Anxious*), **Sentiment** (*Positive, Neutral, Negative*), **Participant Intent**, and **Urgency** (*Low, Medium, High*).
-- **Context-Aware Suggestions**: Generates 2 to 4 natural, concise reply options.
-- **One-Tap Insertion**: Tapping any chip drops the text into the active composer for review, editing, or manual sending.
-
----
-
-<div align="center">
-  <table width="100%">
-    <tr>
-      <td align="center" width="50%">
-        <b>📝 2. Thread Summary</b><br/><br/>
-        <img src="assets/screenshots/ThreadSummayUI.jpg" width="230" alt="Thread Summary UI" /><br/><br/>
-        <sub>Extracts key takeaways, decisions, action items, and task deadlines</sub>
-      </td>
-      <td align="center" width="50%">
-        <b>🛡️ 4. Scam Guard Shield</b><br/><br/>
-        <img src="assets/screenshots/ScamGuardUI.jpg" width="230" alt="Scam Guard UI" /><br/><br/>
-        <sub>Real-time scam risk scoring, threat indicators, and actionable safety advice</sub>
-      </td>
-    </tr>
-  </table>
-</div>
-
-### 2. 📝 Thread Summary (Decisions, Action Items & Deadlines)
-- **Executive Overview**: Distills lengthy message threads in seconds.
-- **Structured Extraction**: Automatically categorizes **Key Points**, **Decisions Made**, **Assigned Tasks**, and **Deadlines & Milestones**.
-- **Single-Pass Inference**: High-speed, structured JSON generation with zero delay.
-
----
-
-### 3. 🔍 Context Search (Semantic Conversational Query)
-> *Ask questions about your chat in natural language — no exact keywords needed.*
-
-<div align="center">
-  <table width="100%">
-    <tr>
-      <td align="center" width="50%">
-        <b>🔍 1. Natural Language Query</b><br/><br/>
-        <img src="assets/screenshots/ContextSearchUI.jpg" width="230" alt="Context Search Input UI" /><br/><br/>
-        <sub>Ask plain questions about past conversations</sub>
-      </td>
-      <td align="center" width="50%">
-        <b>🎯 2. Synthesized Answer & Citations</b><br/><br/>
-        <img src="assets/screenshots/ContextSearchResultUI.jpg" width="230" alt="Context Search Results UI" /><br/><br/>
-        <sub>Direct answers with message citations and jump-to-context references</sub>
-      </td>
-    </tr>
-  </table>
-</div>
-
-- **Concept Understanding**: Finds answers even if the exact words weren't used (*e.g., asking "When is our submission?" finds "Let's submit tomorrow at 2 PM"*).
-- **Direct Citations**: References original messages for instant verification.
-
----
-
-### 4. 🛡️ Scam Guard (Phishing & Fraud Shield)
-- **Multi-Threat Detection**: Scans for phishing links, financial fraud, urgent payment demands, and social engineering.
-- **Risk Scoring**: Categorizes messages into **Low / Safe**, **Moderate Caution**, or **Critical Threat**.
-- **Actionable Guidance**: Provides clear safety advice (*e.g., "Do not click links", "Verify sender out-of-band"*).
-
-> [!NOTE]
-> **Responsible AI Guarantee**: Strictly **100% Human-in-the-Loop**. AI never sends messages automatically. Processing is on-demand, transient, and in-memory with zero background scanning.
-
----
-
-<br/>
-
-## 💬 Full-Stack Real-Time Communication
-
-KChat combines its AI layer with a complete, modern Android communication infrastructure:
-
-### 1. Onboarding, Profiles & Group Channels
-<div align="center">
-  <table width="100%">
-    <tr>
-      <td align="center" width="33%">
-        <b>🔐 Authentication</b><br/><br/>
-        <img src="assets/screenshots/LoginScreen.jpg" width="220" alt="Login Screen" /><br/><br/>
-        <sub>Google Sign-In & Email/Password</sub>
-      </td>
-      <td align="center" width="33%">
-        <b>👤 User Profile</b><br/><br/>
-        <img src="assets/screenshots/ProfileScreen.jpg" width="220" alt="Profile Screen" /><br/><br/>
-        <sub>Avatar, status & account controls</sub>
-      </td>
-      <td align="center" width="33%">
-        <b>👥 Group Channels</b><br/><br/>
-        <img src="assets/screenshots/GroupChatHomeScreen.jpg" width="220" alt="Group Chat Home Screen" /><br/><br/>
-        <sub>Multi-user real-time channels</sub>
-      </td>
-    </tr>
-  </table>
-</div>
-
----
-
-### 2. Direct Messaging & Social Discovery
-<div align="center">
-  <table width="100%">
-    <tr>
-      <td align="center" width="25%">
-        <b>💬 Direct Chats</b><br/><br/>
-        <img src="assets/screenshots/DirectChatHomeScreen.jpg" width="220" alt="Direct Chat Home 1" /><br/><br/>
-        <sub>Live presence & previews</sub>
-      </td>
-      <td align="center" width="25%">
-        <b>💬 Chat Threads</b><br/><br/>
-        <img src="assets/screenshots/DirectChatHomeScreen_2.jpg" width="220" alt="Direct Chat Home 2" /><br/><br/>
-        <sub>Unread badges & history</sub>
-      </td>
-      <td align="center" width="25%">
-        <b>🔍 Add Friends</b><br/><br/>
-        <img src="assets/screenshots/AddFriendUI.jpg" width="220" alt="Add Friend Screen" /><br/><br/>
-        <sub>Live user discovery</sub>
-      </td>
-      <td align="center" width="25%">
-        <b>📩 Friend Requests</b><br/><br/>
-        <img src="assets/screenshots/FriendRequestUI.jpg" width="220" alt="Friend Requests Screen" /><br/><br/>
-        <sub>Accept & reject requests</sub>
-      </td>
-    </tr>
-  </table>
-</div>
-
----
-
-### 3. Rich Attachments & Interactive Messaging
-<div align="center">
-  <table width="100%">
-    <tr>
-      <td align="center" width="33%">
-        <b>📎 Attachment Menu</b><br/><br/>
-        <img src="assets/screenshots/AttachmentUI.jpg" width="220" alt="Attachment Bottom Sheet" /><br/><br/>
-        <sub>Camera, Gallery, Audio, Video & Docs</sub>
-      </td>
-      <td align="center" width="33%">
-        <b>💬 Chat Experience</b><br/><br/>
-        <img src="assets/screenshots/ChattingScreen.jpg" width="220" alt="Chatting Screen 1" /><br/><br/>
-        <sub>Timestamps, read receipts & bubbles</sub>
-      </td>
-      <td align="center" width="33%">
-        <b>↩️ Quoted Replies & Media</b><br/><br/>
-        <img src="assets/screenshots/ChattingScreen_2.jpg" width="220" alt="Chatting Screen 2" /><br/><br/>
-        <sub>Swipe-to-reply & inline media player</sub>
-      </td>
-    </tr>
-  </table>
-</div>
-
-- **₹0 Multimedia Storage**: Powered by Supabase Storage (`chatter_images` bucket).
-- 🎙️ **Voice Notes**: AAC `.m4a` recording with waveform timer and single-instance playback.
-- 📹 **Video Messaging**: 120s camera video recording, gallery picker, and full-screen player.
-- 📎 **Document Sharing**: PDF, DOCX, XLSX, TXT, ZIP up to 25MB via `FileProvider` + `Intent.ACTION_VIEW`.
-- 📞 **ZegoCloud Calling**: Crystal-clear 1-to-1 WebRTC HD voice and video calling.
-- 🔔 **FCM Push Notifications**: Instant background alerts for messages and calls.
-
----
-
-<br/>
-
-## 🏗️ System Architecture & Engineering
-
-```mermaid
-flowchart TD
-    UI["🎨 UI Layer (Jetpack Compose + Material 3)"] --> VM["⚙️ MVVM Layer (ViewModels + StateFlow)"]
-    VM --> CORE["🔌 Core Services (Audio, Video, FileUtils, Presence)"]
-    CORE --> CLOUD["☁️ Cloud & AI Services"]
-
-    subgraph CLOUD["Cloud & External Infrastructure"]
-        direction LR
-        FB["Firebase RTDB • Auth • FCM"]
-        AI["Firebase AI Logic (Gemini 3.5 Flash-Lite)"]
-        SUPA["Supabase Storage (Media & Files)"]
-        ZEGO["ZegoCloud RTC (Calls)"]
-    end
-
-    style UI fill:#161B22,stroke:#58A6FF,stroke-width:2px,color:#F0F6FC
-    style VM fill:#161B22,stroke:#7F52FF,stroke-width:2px,color:#F0F6FC
-    style CORE fill:#161B22,stroke:#3ECF8E,stroke-width:2px,color:#F0F6FC
-    style CLOUD fill:#161B22,stroke:#FFCA28,stroke-width:2px,color:#F0F6FC
+```text
+Send
+  ↓
+Understand
+  ↓
+Assist
+  ↓
+Communicate
 ```
 
-### 💻 Tech Stack Summary
-- **Android**: Kotlin 2.0 • Jetpack Compose • Material Design 3 • Dagger Hilt • Coroutines & Flow
-- **Cloud & Realtime**: Firebase Realtime Database • Firebase Authentication • Firebase Cloud Messaging (FCM)
-- **Security & Integrity**: Firebase App Check with reCAPTCHA Enterprise • R8 Minification
-- **AI Engine**: Google Gemini 3.5 Flash-Lite via Firebase AI Logic
-- **Storage & Calling**: Supabase Cloud Storage • ZegoCloud Call UIKit
+A conversation can contain much more than individual messages.
+
+It can contain:
+
+- 🧠 Context
+- 🎯 Intent
+- 😊 Sentiment
+- 🎭 Tone
+- ⚡ Urgency
+- 📌 Decisions
+- ✅ Tasks
+- 📅 Deadlines
+- 🔐 Security signals
+
+KChat adds an intelligence layer directly inside the communication experience.
 
 ---
 
+# ✨ What Makes KChat Different?
+
+| Traditional Messaging | KChat |
+|---|---|
+| Passive message transmission | Real-time communication + contextual assistance |
+| Manual interpretation of long conversations | AI-assisted conversation understanding |
+| Search mainly by exact keywords | Context-aware conversational retrieval |
+| Manual response writing | AI-assisted Smart Reply |
+| Long conversations require manual reading | AI-assisted Thread Summary |
+| Suspicious communication requires manual inspection | Scam Guard assistance |
+| AI exists separately from the conversation | AI is embedded inside the chat workflow |
+| User handles everything manually | **Human-in-the-loop AI assistance** |
+
+---
+
+# 🧠 KChat AI
+
+## Four AI Features. One Conversation.
+
+<div align="center">
+
+<table width="100%">
+<tr>
+
+<td align="center" width="25%">
+
+### 🤖 Smart Reply
+
+<img src="assets/screenshots/SmartReplyUI.jpg" width="190"/>
+
+<b>Understand → Suggest → Edit → Send</b>
+
+</td>
+
+<td align="center" width="25%">
+
+### 📝 Thread Summary
+
+<img src="assets/screenshots/ThreadSummaryUI.jpg" width="190"/>
+
+<b>Summarize → Understand → Act</b>
+
+</td>
+
+<td align="center" width="25%">
+
+### 🔎 Context Search
+
+<img src="assets/screenshots/ContextSearchUI.jpg" width="190"/>
+
+<b>Search by Context</b>
+
+</td>
+
+<td align="center" width="25%">
+
+### 🛡️ Scam Guard
+
+<img src="assets/screenshots/ScamGuardUI.jpg" width="190"/>
+
+<b>Analyze → Detect → Warn</b>
+
+</td>
+
+</tr>
+</table>
+
+</div>
+
+---
+
+# 🤖 1. Smart Reply
+
+## Emotion & Sentiment Intelligence
+
+KChat Smart Reply is an on-demand conversational assistant for one-to-one chats.
+
+The user selects one or more relevant messages and asks KChat AI to understand the conversation.
+
+The system analyzes:
+
+- 🎭 Tone
+- 😊 Sentiment
+- 🎯 Intent
+- ⚡ Urgency
+- 💬 Conversation context
+
+It then generates multiple context-aware reply suggestions.
+
+### 🔄 Smart Reply Workflow
+
+```text
+┌──────────────────────┐
+│ Select Messages      │
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│ Tap Smart Reply      │
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│ Firebase AI Logic    │
+└──────────┬───────────┘
+           ↓
+┌───────────────────────┐
+│ Gemini 3.5 Flash-Lite │
+└──────────┬────────────┘
+           ↓
+┌─────────────────────────────┐
+│ Tone • Sentiment • Intent   │
+│ Urgency • Suggestions       │
+└─────────────┬───────────────┘
+              ↓
+┌──────────────────────┐
+│ Insert into Composer │
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│ User Reviews / Edits │
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│ Manual Send          │
+└──────────────────────┘
+```
+
+### 🔐 Responsible AI Design
+
+- ✅ AI never automatically sends the generated reply
+- ✅ The user reviews the suggestion
+- ✅ The user can edit the suggestion
+- ✅ AI is triggered only when requested
+- ✅ No continuous background conversation scanning
+- ✅ No raw Gemini developer API key embedded in the application
+
+---
+
+# 📝 2. Thread Summary
+
+Long conversations can contain important information that is difficult to review manually.
+
+Thread Summary converts selected conversation content into a concise structured overview.
+
+### It focuses on:
+
+```text
+📌 Key Points
+✅ Decisions
+📝 Tasks
+📅 Deadlines
+⭐ Important Details
+```
+
+### Workflow
+
+```text
+Conversation
+     ↓
+Selected Messages
+     ↓
+Context Processing
+     ↓
+Gemini Analysis
+     ↓
+Structured Summary
+     ↓
+User Understanding
+```
+
+The goal is to reduce the effort required to revisit long conversations.
+
+---
+
+# 🔎 3. Context Search
+
+Normal message search often depends heavily on exact keywords.
+
+KChat Context Search focuses on the **meaning and context of the conversation**.
+
+Instead of searching only:
+
+```text
+"deadline"
+```
+
+the user can ask:
+
+```text
+"When do we need to complete the project?"
+```
+
+or:
+
+```text
+"Who was responsible for preparing the presentation?"
+```
+
+### Context Search Workflow
+
+```text
+Conversation Messages
+        ↓
+Context Preparation
+        ↓
+AI Context Analysis
+        ↓
+Relevant Message Identification
+        ↓
+Local Validation
+        ↓
+Search Results
+        ↓
+Jump to Original Message
+```
+
+### Context Search Showcase
+
+<div align="center">
+
+<table width="100%">
+<tr>
+
+<td align="center" width="50%">
+
+<b>Search Interface</b>
+
+<br/><br/>
+
+<img src="assets/screenshots/ContextSearchUI.jpg" width="250"/>
+
+</td>
+
+<td align="center" width="50%">
+
+<b>Search Results</b>
+
+<br/><br/>
+
+<img src="assets/screenshots/ContextSearchResultUI.jpg" width="250"/>
+
+</td>
+
+</tr>
+</table>
+
+</div>
+
+---
+
+# 🛡️ 4. Scam Guard
+
+Digital communication can contain:
+
+- Suspicious links
+- Urgent requests
+- Credential requests
+- Financial requests
+- Impersonation attempts
+- Phishing patterns
+
+Scam Guard provides AI-assisted analysis of selected messages and highlights possible warning indicators.
+
+### Scam Guard Workflow
+
+```text
+User Selects Message
+        ↓
+     Scam Guard
+        ↓
+   AI Risk Analysis
+        ↓
+┌───────────────────────┐
+│ Risk Level            │
+│ Warning Indicators    │
+│ Explanation           │
+│ Recommendations       │
+└───────────┬───────────┘
+            ↓
+       User Decision
+```
+
+Scam Guard is user-triggered and provides an additional layer of communication awareness.
+
+---
+
+# 🧠 The Four AI Features Together
+
+```text
+                         KCHAT AI
+                            │
+        ┌───────────────────┼───────────────────┐
+        │                   │                   │
+        ▼                   ▼                   ▼
+   🤖 Smart Reply     📝 Thread Summary    🔎 Context Search
+        │                   │                   │
+        └───────────────────┼───────────────────┘
+                            │
+                            ▼
+                       🛡️ Scam Guard
+                            │
+                            ▼
+                     👤 User Assistance
+```
+
+| AI Feature | Purpose |
+|---|---|
+| 🤖 **Smart Reply** | Generate context-aware response suggestions |
+| 📝 **Thread Summary** | Extract important information from conversations |
+| 🔎 **Context Search** | Retrieve relevant information from conversation context |
+| 🛡️ **Scam Guard** | Identify possible scam and phishing indicators |
+
+---
+
+# 📱 Application Showcase
+
+## 🔐 Authentication & User Management
+
+<div align="center">
+
+<table width="100%">
+<tr>
+
+<td align="center" width="50%">
+
+### Login
+
+<img src="assets/screenshots/LoginScreen.jpg" width="220"/>
+
+Firebase authentication and account access
+
+</td>
+
+<td align="center" width="50%">
+
+### Profile
+
+<img src="assets/screenshots/ProfileScreen.jpg" width="220"/>
+
+Profile and account management
+
+</td>
+
+</tr>
+</table>
+
+</div>
+
+---
+
+# 👥 Social Graph
+
+<div align="center">
+
+<table width="100%">
+<tr>
+
+<td align="center" width="33%">
+
+### Add Friend
+
+<img src="assets/screenshots/AddFriendUI.jpg" width="190"/>
+
+</td>
+
+<td align="center" width="33%">
+
+### Friend Requests
+
+<img src="assets/screenshots/FriendRequestUI.jpg" width="190"/>
+
+</td>
+
+<td align="center" width="33%">
+
+### Direct Chat Home
+
+<img src="assets/screenshots/DirectChatHomeScreen.jpg" width="190"/>
+
+</td>
+
+</tr>
+</table>
+
+</div>
+
+---
+
+# 💬 Real-Time Communication
+
+<div align="center">
+
+<table width="100%">
+<tr>
+
+<td align="center" width="50%">
+
+### Personal Chat
+
+<img src="assets/screenshots/ChattingScreen.jpg" width="230"/>
+
+Text, replies, presence and real-time messaging
+
+</td>
+
+<td align="center" width="50%">
+
+### Chat Interaction
+
+<img src="assets/screenshots/ChattingScreen_2.jpg" width="230"/>
+
+Conversation interaction and multimedia support
+
+</td>
+
+</tr>
+</table>
+
 <br/>
 
-## 🛠️ Building & Running from Source
+<table width="100%">
+<tr>
+
+<td align="center" width="50%">
+
+### Conversation Home
+
+<img src="assets/screenshots/DirectChatHomeScreen_2.jpg" width="230"/>
+
+Conversation previews and timestamps
+
+</td>
+
+<td align="center" width="50%">
+
+### Group Chat
+
+<img src="assets/screenshots/GroupChatHomeScreen.jpg" width="230"/>
+
+Multi-user real-time communication
+
+</td>
+
+</tr>
+</table>
+
+</div>
+
+---
+
+# 📎 Media & Attachment System
+
+KChat supports multiple forms of communication beyond plain text:
+
+```text
+📷 Images
+🎤 Voice Messages
+🎥 Video Messages
+📎 Documents / Files
+```
+
+### Attachment Interface
+
+<div align="center">
+
+<img src="assets/screenshots/AttachmentUI.jpg" width="280"/>
+
+<br/><br/>
+
+<sub>
+Unified access to KChat's multimedia and file communication features.
+</sub>
+
+</div>
+
+---
+
+# 🧠 KChat AI Interface
+
+The KChat AI interface brings the four contextual intelligence features together inside the communication workflow.
+
+<div align="center">
+
+<img src="assets/screenshots/KChatAI_UI.jpg" width="300"/>
+
+<br/><br/>
+
+<b>KChat AI — Contextual Conversational Intelligence</b>
+
+</div>
+
+---
+
+# 🏗️ Application Architecture
+
+KChat follows a modular Android architecture built around:
+
+- Kotlin
+- Jetpack Compose
+- MVVM
+- Coroutines
+- Flow / StateFlow
+- Firebase
+- Supabase
+- Firebase AI Logic
+- ZEGOCLOUD
+
+## System Architecture
+
+<div align="center">
+
+<img src="assets/screenshots/ApplicationArchitecture.png" alt="KChat Application Architecture" width="900"/>
+
+<br/><br/>
+
+<b>KChat Application Architecture</b>
+
+</div>
+
+### Main Architecture Layers
+
+| Layer | Responsibility |
+|---|---|
+| 📱 **Android UI** | Jetpack Compose screens, chat UI, attachments and AI interfaces |
+| 🧠 **ViewModel Layer** | UI state and application logic |
+| ⚙️ **Service Layer** | Communication, storage, AI and calling operations |
+| 🔥 **Firebase** | Authentication, real-time database, notifications |
+| 🟢 **Supabase** | Image, audio, video and file storage |
+| 🤖 **Firebase AI Logic + Gemini** | Contextual AI processing |
+| 📞 **ZEGOCLOUD** | Real-time audio/video calling |
+
+---
+
+# 🤖 AI Architecture
+
+The AI system is built around **user-selected conversational context**.
+
+<div align="center">
+
+<img src="assets/screenshots/AIArchitecture.png" alt="KChat AI Architecture" width="900"/>
+
+<br/><br/>
+
+<b>KChat Context Intelligence Architecture</b>
+
+</div>
+
+### AI Processing Model
+
+```text
+User
+ │
+ ▼
+Selects Relevant Messages
+ │
+ ▼
+Chooses KChat AI Feature
+ │
+ ├──────────────► 🤖 Smart Reply
+ │
+ ├──────────────► 📝 Thread Summary
+ │
+ ├──────────────► 🔎 Context Search
+ │
+ └──────────────► 🛡️ Scam Guard
+                 │
+                 ▼
+        Firebase AI Logic
+                 │
+                 ▼
+        Gemini 3.5 Flash-Lite
+                 │
+                 ▼
+        Processed AI Result
+                 │
+                 ▼
+             KChat UI
+                 │
+                 ▼
+            User Action
+```
+
+---
+
+# 📊 Core KChat Features
+
+| Category | Capabilities |
+|---|---|
+| 🔐 **Authentication** | Firebase Authentication |
+| 💬 **Messaging** | One-to-one and group chat |
+| 🟢 **Presence** | Online / offline / last seen |
+| ✅ **Message State** | Read receipts and unread counters |
+| 🔁 **Replies** | Swipe-to-reply and quoted replies |
+| 📷 **Images** | Camera and gallery sharing |
+| 🎤 **Audio** | Voice recording and playback |
+| 🎥 **Video** | Camera, gallery, preview and playback |
+| 📎 **Files** | Documents and file sharing |
+| 📞 **Calling** | Voice and video calling |
+| 🔔 **Notifications** | Firebase Cloud Messaging |
+| 🤖 **AI** | Smart Reply, Thread Summary, Context Search, Scam Guard |
+| 🛡️ **Security** | Firebase App Check + reCAPTCHA Enterprise |
+| 🎨 **UI/UX** | Jetpack Compose + Material 3 |
+
+---
+
+# 🛠️ Technology Stack
+
+| Layer | Technologies | Purpose |
+|---|---|---|
+| **Platform** | Android | Mobile application |
+| **Language** | Kotlin | Primary development language |
+| **UI** | Jetpack Compose + Material 3 | Modern declarative UI |
+| **Architecture** | MVVM + Coroutines + Flow | State management |
+| **Authentication** | Firebase Authentication | User authentication |
+| **Database** | Firebase Realtime Database | Real-time messaging and state |
+| **Notifications** | Firebase Cloud Messaging | Push notifications |
+| **AI Platform** | Firebase AI Logic | Gemini integration |
+| **AI Model** | Gemini 3.5 Flash-Lite | Contextual AI processing |
+| **Storage** | Supabase Storage | Media and file storage |
+| **Calling** | ZEGOCLOUD | Real-time voice/video calling |
+| **Image Loading** | Coil | Image loading and caching |
+| **Dependency Injection** | Hilt | Dependency management |
+| **Security** | Firebase App Check + reCAPTCHA Enterprise | Application integrity |
+| **Build** | Gradle + R8 | Release optimization |
+| **Version Control** | Git + GitHub | Source control |
+
+---
+
+# 🔐 Security & Responsible AI
+
+KChat is designed around controlled AI assistance.
+
+## 👤 Human-in-the-Loop
+
+```text
+AI Suggests
+    ↓
+User Reviews
+    ↓
+User Edits
+    ↓
+User Decides
+    ↓
+Manual Send / Action
+```
+
+### Security Principles
+
+- ✅ No automatic AI message sending
+- ✅ AI features are user-triggered
+- ✅ No continuous background AI scanning
+- ✅ No Gemini API key embedded in the application
+- ✅ Firebase App Check protection
+- ✅ Release App Check uses reCAPTCHA Enterprise
+- ✅ User remains in control of AI-assisted communication
+
+---
+
+# ✅ Current Feature Status
+
+<div align="center">
+
+| Feature | Status |
+|---|:---:|
+| Firebase Authentication | ✅ |
+| One-to-One Chat | ✅ |
+| Group Chat | ✅ |
+| Friend System | ✅ |
+| Online / Offline Presence | ✅ |
+| Last Seen | ✅ |
+| Read Receipts | ✅ |
+| Message Replies | ✅ |
+| Image Messaging | ✅ |
+| Audio Messaging | ✅ |
+| Video Messaging | ✅ |
+| Document / File Messaging | ✅ |
+| Voice Calling | ✅ |
+| Video Calling | ✅ |
+| Push Notifications | ✅ |
+| 🤖 Smart Reply | ✅ |
+| 📝 Thread Summary | ✅ |
+| 🔎 Context Search | ✅ |
+| 🛡️ Scam Guard | ✅ |
+| Firebase App Check | ✅ |
+| Signed Release APK | ✅ |
+
+</div>
+
+---
+
+# 🗺️ Development Journey
+
+```text
+PHASE 1
+Core Communication
+      │
+      ▼
+PHASE 2
+Chat Experience
+      │
+      ▼
+PHASE 3
+Media & Attachments
+      │
+      ▼
+PHASE 4
+Contextual AI
+      │
+      ▼
+FINAL
+Testing • Security • Release
+```
+
+### KChat Intelligence Layer
+
+```text
+                   KCHAT AI
+                      │
+        ┌─────────────┼─────────────┐
+        │             │             │
+        ▼             ▼             ▼
+ 🤖 Smart Reply  📝 Thread      🔎 Context
+                 Summary          Search
+                      │
+                      ▼
+                 🛡️ Scam Guard
+```
+
+---
+
+# 📸 Complete KChat Screenshots
+
+<details>
+<summary><b>🔐 Authentication & User Experience</b></summary>
+
+<br/>
+
+<div align="center">
+
+<table>
+<tr>
+
+<td align="center">
+
+<img src="assets/screenshots/LoginScreen.jpg" width="180"/>
+
+<br/>
+<sub>Login</sub>
+
+</td>
+
+<td align="center">
+
+<img src="assets/screenshots/ProfileScreen.jpg" width="180"/>
+
+<br/>
+<sub>Profile</sub>
+
+</td>
+
+<td align="center">
+
+<img src="assets/screenshots/AddFriendUI.jpg" width="180"/>
+
+<br/>
+<sub>Add Friend</sub>
+
+</td>
+
+<td align="center">
+
+<img src="assets/screenshots/FriendRequestUI.jpg" width="180"/>
+
+<br/>
+<sub>Friend Requests</sub>
+
+</td>
+
+</tr>
+</table>
+
+</div>
+
+</details>
+
+<details>
+<summary><b>💬 Communication & Chat</b></summary>
+
+<br/>
+
+<div align="center">
+
+<table>
+<tr>
+
+<td align="center">
+
+<img src="assets/screenshots/DirectChatHomeScreen.jpg" width="180"/>
+
+<br/>
+<sub>Direct Chat Home</sub>
+
+</td>
+
+<td align="center">
+
+<img src="assets/screenshots/DirectChatHomeScreen_2.jpg" width="180"/>
+
+<br/>
+<sub>Conversation Home</sub>
+
+</td>
+
+<td align="center">
+
+<img src="assets/screenshots/ChattingScreen.jpg" width="180"/>
+
+<br/>
+<sub>Personal Chat</sub>
+
+</td>
+
+<td align="center">
+
+<img src="assets/screenshots/ChattingScreen_2.jpg" width="180"/>
+
+<br/>
+<sub>Chat Interaction</sub>
+
+</td>
+
+</tr>
+
+<tr>
+
+<td align="center">
+
+<img src="assets/screenshots/GroupChatHomeScreen.jpg" width="180"/>
+
+<br/>
+<sub>Group Chat</sub>
+
+</td>
+
+<td align="center">
+
+<img src="assets/screenshots/AttachmentUI.jpg" width="180"/>
+
+<br/>
+<sub>Attachment System</sub>
+
+</td>
+
+</tr>
+</table>
+
+</div>
+
+</details>
+
+<details>
+<summary><b>🧠 KChat AI</b></summary>
+
+<br/>
+
+<div align="center">
+
+<table>
+<tr>
+
+<td align="center">
+
+<img src="assets/screenshots/KChatAI_UI.jpg" width="180"/>
+
+<br/>
+<sub>KChat AI</sub>
+
+</td>
+
+<td align="center">
+
+<img src="assets/screenshots/SmartReplyUI.jpg" width="180"/>
+
+<br/>
+<sub>Smart Reply</sub>
+
+</td>
+
+<td align="center">
+
+<img src="assets/screenshots/ThreadSummaryUI.jpg" width="180"/>
+
+<br/>
+<sub>Thread Summary</sub>
+
+</td>
+
+<td align="center">
+
+<img src="assets/screenshots/ContextSearchUI.jpg" width="180"/>
+
+<br/>
+<sub>Context Search</sub>
+
+</td>
+
+</tr>
+
+<tr>
+
+<td align="center">
+
+<img src="assets/screenshots/ContextSearchResultUI.jpg" width="180"/>
+
+<br/>
+<sub>Context Search Results</sub>
+
+</td>
+
+<td align="center">
+
+<img src="assets/screenshots/ScamGuardUI.jpg" width="180"/>
+
+<br/>
+<sub>Scam Guard</sub>
+
+</td>
+
+</tr>
+</table>
+
+</div>
+
+</details>
+
+---
+
+# 📥 Download KChat
+
+<div align="center">
+
+<a href="https://drive.google.com/drive/folders/1RB-iQOIvo52ucmvXW4rn5l9Vo4NQUrR">
+<img src="https://img.shields.io/badge/📥_DOWNLOAD_KCHAT_RELEASE_APK-Google_Drive-34A853?style=for-the-badge&logo=googledrive&logoColor=white"/>
+</a>
+
+<br/><br/>
+
+<sub>
+Signed Release APK • arm64-v8a • Android 8.0+
+</sub>
+
+</div>
+
+---
+
+# 🛠️ Build from Source
+
+## 1. Clone
 
 ```bash
-# 1. Clone repository
 git clone https://github.com/programmer-kunal/KChat.git
 cd KChat
+```
 
-# 2. Configure credentials
-cp local.properties.example local.properties
-# Set: ZEGO_APP_ID, ZEGO_APP_SIGN, SUPABASE_URL, SUPABASE_ANON_KEY, RECAPTCHA_ENTERPRISE_SITE_KEY
+## 2. Open in Android Studio
 
-# 3. Add Firebase configuration
-# Place your google-services.json inside app/
+Open the repository in Android Studio and allow Gradle synchronization to complete.
 
-# 4. Build and run
+## 3. Configure Local Properties
+
+Create the local configuration file using the project's example configuration.
+
+```properties
+ZEGO_APP_ID=your_zego_app_id
+ZEGO_APP_SIGN=your_zego_app_sign
+
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+
+RECAPTCHA_ENTERPRISE_SITE_KEY=your_recaptcha_site_key
+```
+
+## 4. Add Firebase Configuration
+
+Place:
+
+```text
+google-services.json
+```
+
+inside:
+
+```text
+app/google-services.json
+```
+
+## 5. Build Debug APK
+
+```bash
 ./gradlew assembleDebug
 ```
 
----
+## 6. Build Release APK
 
-<br/>
+```bash
+./gradlew assembleRelease
+```
 
-## 👨‍💻 Author & Maintainer
-
-<table align="center">
-  <tr>
-    <td align="center">
-      <a href="https://github.com/programmer-kunal">
-        <img src="https://avatars.githubusercontent.com/u/104118335?v=4" width="110px;" style="border-radius: 50%;" alt="Kunal"/>
-        <br/><br/>
-        <b>Kunal</b>
-      </a>
-      <br/>
-      <sub>Lead Android & AI Systems Developer</sub>
-      <br/><br/>
-      <a href="https://github.com/programmer-kunal" target="_blank">
-        <img src="https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github&logoColor=white" alt="GitHub"/>
-      </a>
-    </td>
-  </tr>
-</table>
+> ⚠️ Never commit private keys, credentials, signing files, or secret configuration values to the repository.
 
 ---
 
-<br/>
+# 🧪 Verification
 
-## ⭐ Support & Community
+## Communication
 
-If you find KChat inspiring:
-- ⭐ **Star this repository** to show support!
-- 🍴 **Fork the project** and build your own AI-powered features.
-- 💬 **Feedback**: Open an Issue or submit a Pull Request!
+- ✅ Authentication
+- ✅ One-to-one messaging
+- ✅ Group messaging
+- ✅ Friend system
+- ✅ Presence
+- ✅ Read receipts
+- ✅ Replies
+- ✅ Notifications
+- ✅ Images
+- ✅ Audio
+- ✅ Video
+- ✅ Documents / Files
+- ✅ Voice calling
+- ✅ Video calling
 
-<br/>
+## AI
+
+- ✅ Smart Reply
+- ✅ Thread Summary
+- ✅ Context Search
+- ✅ Scam Guard
+
+## Release
+
+- ✅ Debug build
+- ✅ Unit-test compilation
+- ✅ Signed Release APK
+- ✅ R8 / Minification
+- ✅ Resource shrinking
+- ✅ Firebase App Check
+- ✅ Release security verification
+
+---
+
+# 🌟 The KChat Vision
+
+```text
+        MESSAGE
+           ↓
+        CONTEXT
+           ↓
+      INTELLIGENCE
+           ↓
+       ASSISTANCE
+```
+
+KChat is designed around one central idea:
+
+# **FROM CHAT → TO CONTEXT**
+
+The goal is not simply to create another messaging application.
+
+It is to explore how AI can become a useful layer **inside communication itself**.
+
+---
+
+# 👨‍💻 Developer
 
 <div align="center">
-  <img src="assets/screenshots/KChatLogo.png" width="36" height="36" alt="KChat Mini Logo" />
-  <br/>
-  <b>KChat: From Chat to Context</b>
-  <br/>
-  <sub>Designed & Developed with ❤️ by Kunal</sub>
+
+<a href="https://github.com/programmer-kunal">
+
+<img src="https://avatars.githubusercontent.com/u/104118335?v=4" width="100px" alt="Kunal"/>
+
+<br/>
+
+### **Kunal**
+
+**Android Developer • AI Application Builder**
+
+<br/>
+
+<img src="https://img.shields.io/badge/GitHub-programmer--kunal-181717?style=for-the-badge&logo=github&logoColor=white"/>
+
+</a>
+
+</div>
+
+---
+
+<div align="center">
+
+<img src="assets/screenshots/KChatLogo.png" width="70"/>
+
+<br/><br/>
+
+# 💬 KChat
+
+### **FROM CHAT → TO CONTEXT**
+
+<br/>
+
+**Real-Time Communication × Context Intelligence**
+
+<br/>
+
+<sub>
+Built with Kotlin • Jetpack Compose • Firebase • Supabase • Gemini • ZEGOCLOUD
+</sub>
+
+<br/><br/>
+
+<a href="https://github.com/programmer-kunal/KChat">
+<img src="https://img.shields.io/badge/View_on_GitHub-181717?style=for-the-badge&logo=github&logoColor=white"/>
+</a>
+
 </div>
