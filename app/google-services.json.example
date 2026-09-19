@@ -10,43 +10,6 @@
       "client_info": {
         "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
         "android_client_info": {
-          "package_name": "com.example.kchat"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "000000000000-placeholder.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.kchat",
-            "certificate_hash": "0000000000000000000000000000000000000000"
-          }
-        },
-        {
-          "client_id": "000000000000-placeholder.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "YOUR_FIREBASE_API_KEY"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "000000000000-placeholder.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
-        "android_client_info": {
           "package_name": "com.kunal.kchat"
         }
       },
