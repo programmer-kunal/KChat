@@ -2,7 +2,7 @@
 
 <img src="assets/screenshots/KChatLogo.png" alt="KChat Logo" width="85"/>
 
-# 💬 KChat
+# KChat
 
 ### 🚀 From Chat to Context
 
@@ -41,7 +41,7 @@
 <img src="https://img.shields.io/badge/Architecture-MVVM-00A86B?style=for-the-badge"/>
 </a>
 
-<br/><br/>
+<br/>
 
 ### 💬 Real-Time Communication + 🤖 Contextual AI
 
@@ -60,7 +60,7 @@ calling, and contextual AI assistance</b> in a modern Android application.
 <img src="https://img.shields.io/badge/📥_DOWNLOAD_LATEST_RELEASE_APK-Google_Drive-34A853?style=for-the-badge&logo=googledrive&logoColor=white"/>
 </a>
 
-<br/><br/>
+<br/>
 
 <sub>Signed Release APK • arm64-v8a • Firebase App Check • reCAPTCHA Enterprise</sub>
 
@@ -359,7 +359,7 @@ KChat follows a modular Android architecture based on:
      alt="KChat Application Architecture"
      width="760"/>
 
-<br/><br/>
+<br/>
 
 <b>Application Architecture</b>
 
@@ -389,7 +389,7 @@ The AI system is based on **user-selected conversation context**.
      alt="KChat AI Architecture"
      width="760"/>
 
-<br/><br/>
+<br/>
 
 <b>Context Intelligence Architecture</b>
 
@@ -668,7 +668,7 @@ Manual Action
 <img src="https://img.shields.io/badge/📥_DOWNLOAD_LATEST_RELEASE_APK-Google_Drive-34A853?style=for-the-badge&logo=googledrive&logoColor=white"/>
 </a>
 
-<br/><br/>
+<br/>
 
 <sub>
 Latest signed Release APK • arm64-v8a
@@ -817,7 +817,7 @@ KChat is built around one idea:
 
 <img src="assets/screenshots/KChatLogo.png" width="60"/>
 
-<br/><br/>
+<br/>
 
 ### 💬 KChat
 
@@ -827,7 +827,7 @@ KChat is built around one idea:
 
 <sub>Built with Kotlin • Jetpack Compose • Firebase • Supabase • Gemini • ZEGOCLOUD</sub>
 
-<br/><br/>
+<br/>
 
 <a href="https://github.com/programmer-kunal/KChat">
 <img src="https://img.shields.io/badge/View_on_GitHub-181717?style=for-the-badge&logo=github&logoColor=white"/>
