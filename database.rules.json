@@ -1,0 +1,96 @@
+{
+  "rules": {
+    "users": {
+      ".read": "auth != null",
+      ".indexOn": ["email", "name"],
+      "$uid": {
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "friends": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        "$friendUid": {
+          ".write": "auth != null && (auth.uid == $uid || auth.uid == $friendUid)"
+        }
+      }
+    },
+    "friend_requests": {
+      ".read": "auth != null",
+      "$receiverUid": {
+        "$senderUid": {
+          ".write": "auth != null && (auth.uid == $senderUid || auth.uid == $receiverUid)"
+        }
+      }
+    },
+    "messages": {
+      "$channelId": {
+        ".read": "auth != null && ($channelId.contains('_') ? $channelId.contains(auth.uid) : ((root.child('channels/' + $channelId + '/users/' + auth.uid).exists() || root.child('channel_creator/' + $channelId).val() == auth.uid) && !root.child('deleted_groups/' + auth.uid + '/' + $channelId).exists()))",
+        ".indexOn": ["id", "createdAt"],
+        ".write": "auth != null && !newData.exists() && root.child('channel_creator/' + $channelId).val() == auth.uid",
+        "$messageId": {
+          ".write": "auth != null && ($channelId.contains('_') ? $channelId.contains(auth.uid) : ((root.child('channels/' + $channelId + '/users/' + auth.uid).exists() || root.child('channel_creator/' + $channelId).val() == auth.uid) && !root.child('deleted_groups/' + auth.uid + '/' + $channelId).exists())) && ((!data.exists() && newData.child('senderId').val() == auth.uid) || (!newData.exists() && (data.child('senderId').val() == auth.uid || root.child('channel_creator/' + $channelId).val() == auth.uid)))",
+          "readBy": {
+            "$uid": {
+              ".write": "auth != null && auth.uid == $uid && ($channelId.contains('_') ? $channelId.contains(auth.uid) : ((root.child('channels/' + $channelId + '/users/' + auth.uid).exists() || root.child('channel_creator/' + $channelId).val() == auth.uid) && !root.child('deleted_groups/' + auth.uid + '/' + $channelId).exists()))"
+            }
+          }
+        }
+      }
+    },
+    "status": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "chat_hidden": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        "$channelId": {
+          ".write": "auth != null && (auth.uid == $uid || $channelId.contains(auth.uid))"
+        }
+      }
+    },
+    "deleted_messages": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        "$channelId": {
+          ".write": "auth != null && auth.uid == $uid"
+        }
+      }
+    },
+    "deleted_groups": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        "$channelId": {
+          ".write": "auth != null && auth.uid == $uid"
+        }
+      }
+    },
+    "channel": {
+      ".read": "auth != null",
+      "$channelId": {
+        ".write": "auth != null && (!data.exists() || root.child('channel_creator/' + $channelId).val() == auth.uid)"
+      }
+    },
+    "channel_creator": {
+      ".read": "auth != null",
+      "$channelId": {
+        ".write": "auth != null && ((!data.exists() && newData.val() == auth.uid) || (!newData.exists() && data.val() == auth.uid))"
+      }
+    },
+    "channels": {
+      "$channelId": {
+        ".write": "auth != null && !newData.exists() && root.child('channel_creator/' + $channelId).val() == auth.uid",
+        "users": {
+          ".read": "auth != null && ((root.child('channels/' + $channelId + '/users/' + auth.uid).exists() || root.child('channel_creator/' + $channelId).val() == auth.uid) && !root.child('deleted_groups/' + auth.uid + '/' + $channelId).exists())",
+          "$uid": {
+            ".read": "auth != null && auth.uid == $uid",
+            ".write": "auth != null && auth.uid == $uid && !root.child('deleted_groups/' + auth.uid + '/' + $channelId).exists()"
+          }
+        }
+      }
+    }
+  }
+}

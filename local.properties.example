@@ -1,0 +1,16 @@
+## Example local configuration template for KChat
+## Copy this file to local.properties and fill in your actual credentials.
+## local.properties is ignored by Git and must NOT be committed to source control.
+
+sdk.dir=C\:\\Users\\your_user\\AppData\\Local\\Android\\Sdk
+
+# ZegoCloud API Credentials
+ZEGO_APP_ID=your_zego_app_id
+ZEGO_APP_SIGN=your_zego_app_sign
+
+# Supabase Storage Configuration
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Firebase App Check (reCAPTCHA Enterprise)
+RECAPTCHA_ENTERPRISE_SITE_KEY=your_recaptcha_enterprise_site_key
