@@ -789,7 +789,7 @@ KChat is built around one idea:
 
 ### **Kunal**
 **Android Developer • Application Builder**
-<br/>
+<br/><br/>
 <img src="https://img.shields.io/badge/GitHub-programmer--kunal-181717?style=for-the-badge&logo=github&logoColor=white"/>
 </a>
 </div>
@@ -803,7 +803,7 @@ KChat is built around one idea:
 **Real-Time Communication × Context Intelligence**
 <br/>
 <sub>Built with Kotlin • Jetpack Compose • Firebase • Supabase • Gemini • ZEGOCLOUD</sub>
-<br/>
+<br/><br/>
 <a href="https://github.com/programmer-kunal/KChat">
 <img src="https://img.shields.io/badge/View_on_GitHub-181717?style=for-the-badge&logo=github&logoColor=white"/>
 </a>
