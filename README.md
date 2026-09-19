@@ -793,7 +793,9 @@ KChat is built around one idea:
 <img src="https://img.shields.io/badge/GitHub-programmer--kunal-181717?style=for-the-badge&logo=github&logoColor=white"/>
 </a>
 </div>
+
 ---
+
 <div align="center">
 <img src="assets/screenshots/KChatLogo.png" width="60"/>
 <br/>
