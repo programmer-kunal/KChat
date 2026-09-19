@@ -335,15 +335,7 @@ KChat supports:
 📎 Documents / Files
 ```
 
-<div align="center">
 
-<img src="assets/screenshots/AttachmentUI.jpg" width="220"/>
-
-<br/>
-
-<sub>Unified Attachment Interface</sub>
-
-</div>
 
 ---
 
@@ -788,49 +780,29 @@ KChat is built around one idea:
 ---
 
 # 👨‍💻 Developer
-
 <div align="center">
-
 <a href="https://github.com/programmer-kunal">
-
 <img src="https://avatars.githubusercontent.com/u/104118335?v=4"
      width="85px"
      alt="Kunal"/>
-
 <br/>
 
 ### **Kunal**
-
 **Android Developer • Application Builder**
-
 <br/>
-
 <img src="https://img.shields.io/badge/GitHub-programmer--kunal-181717?style=for-the-badge&logo=github&logoColor=white"/>
-
 </a>
-
 </div>
-
 ---
-
 <div align="center">
-
 <img src="assets/screenshots/KChatLogo.png" width="60"/>
-
 <br/>
-
 ### 💬 KChat
-
 **Real-Time Communication × Context Intelligence**
-
 <br/>
-
 <sub>Built with Kotlin • Jetpack Compose • Firebase • Supabase • Gemini • ZEGOCLOUD</sub>
-
 <br/>
-
 <a href="https://github.com/programmer-kunal/KChat">
 <img src="https://img.shields.io/badge/View_on_GitHub-181717?style=for-the-badge&logo=github&logoColor=white"/>
 </a>
-
 </div>
