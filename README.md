@@ -804,7 +804,7 @@ KChat is built around one idea:
 <br/>
 <sub>Built with Kotlin • Jetpack Compose • Firebase • Supabase • Gemini • ZEGOCLOUD</sub>
 <br/><br/>
-<a href="https://github.com/programmer-kunal/KChat">
+<a href="https://github.com/programmer-kunal">
 <img src="https://img.shields.io/badge/View_on_GitHub-181717?style=for-the-badge&logo=github&logoColor=white"/>
 </a>
 </div>
