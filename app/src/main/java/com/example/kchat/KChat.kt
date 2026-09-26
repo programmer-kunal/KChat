@@ -13,6 +13,10 @@ import com.zegocloud.uikit.internal.ZegoUIKitLanguage
 import com.zegocloud.uikit.prebuilt.call.event.ErrorEventsListener
 import com.zegocloud.uikit.prebuilt.call.event.SignalPluginConnectListener
 import com.zegocloud.uikit.prebuilt.call.event.CallEndListener
+import com.zegocloud.uikit.service.defines.ZegoOnlySelfInRoomListener
+import com.zegocloud.uikit.prebuilt.call.invite.internal.ZegoInvitationCallListener
+import com.zegocloud.uikit.prebuilt.call.invite.internal.ZegoCallUser
+import com.zegocloud.uikit.prebuilt.call.invite.internal.ZegoCallType
 import im.zego.zim.enums.ZIMConnectionState
 import im.zego.zim.enums.ZIMConnectionEvent
 import org.json.JSONObject
@@ -31,6 +35,9 @@ class KChat: Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // Initialize theme preference from SharedPreferences
+        com.example.kchat.ui.theme.ThemeManager.init(this)
 
         // Initialize Firebase App Check: Debug provider for debug builds, reCAPTCHA Enterprise for release builds
         val appCheck = com.google.firebase.appcheck.FirebaseAppCheck.getInstance()
@@ -124,6 +131,7 @@ class KChat: Application() {
     fun initZegoService(appID: Long, appSign: String, userID: String, userName: String) {
         val callInvitationConfig = ZegoUIKitPrebuiltCallInvitationConfig()
         callInvitationConfig.translationText = ZegoTranslationText(ZegoUIKitLanguage.ENGLISH)
+        callInvitationConfig.endCallWhenInitiatorLeave = true
 
         callInvitationConfig.provider =
             ZegoUIKitPrebuiltCallConfigProvider { invitationData: ZegoCallInvitationData? ->
@@ -138,6 +146,62 @@ class KChat: Application() {
         ZegoUIKitPrebuiltCallService.events.invitationEvents.pluginConnectListener =
             SignalPluginConnectListener { state: ZIMConnectionState, event: ZIMConnectionEvent, extendedData: JSONObject ->
                 Timber.d("onSignalPluginConnectionStateChanged() called")
+            }
+
+        // Listener for when only self is left in room -> end active call immediately so neither side stays stuck
+        ZegoUIKitPrebuiltCallService.events.callEvents.onlySelfInRoomListener =
+            ZegoOnlySelfInRoomListener {
+                Log.d("NotificationDebug", "onlySelfInRoomListener -> only self left in room, ending call")
+                ZegoUIKitPrebuiltCallService.endCall()
+            }
+
+        // Synchronize invitation decline, cancellation, and timeout so ringing screens dismiss cleanly
+        ZegoUIKitPrebuiltCallService.events.invitationEvents.invitationListener =
+            object : ZegoInvitationCallListener {
+                override fun onIncomingCallReceived(
+                    callID: String?,
+                    caller: ZegoCallUser?,
+                    callType: ZegoCallType?,
+                    callees: MutableList<ZegoCallUser>?
+                ) {
+                    Log.d("NotificationDebug", "onIncomingCallReceived: callID=$callID, caller=${caller?.id}")
+                }
+
+                override fun onIncomingCallCanceled(callID: String?, caller: ZegoCallUser?) {
+                    Log.d("NotificationDebug", "onIncomingCallCanceled: caller cancelled, ending incoming call UI")
+                    ZegoUIKitPrebuiltCallService.endCall()
+                }
+
+                override fun onIncomingCallTimeout(callID: String?, caller: ZegoCallUser?) {
+                    Log.d("NotificationDebug", "onIncomingCallTimeout: callID=$callID")
+                    ZegoUIKitPrebuiltCallService.endCall()
+                }
+
+                override fun onOutgoingCallAccepted(callID: String?, callee: ZegoCallUser?) {
+                    Log.d("NotificationDebug", "onOutgoingCallAccepted: callID=$callID, callee=${callee?.id}")
+                }
+
+                override fun onOutgoingCallRejectedCauseBusy(callID: String?, callee: ZegoCallUser?) {
+                    Log.d("NotificationDebug", "onOutgoingCallRejectedCauseBusy: callee busy: ${callee?.id}")
+                    if (callID == null || !callID.startsWith("call_group_")) {
+                        ZegoUIKitPrebuiltCallService.endCall()
+                    }
+                }
+
+                override fun onOutgoingCallDeclined(callID: String?, callee: ZegoCallUser?) {
+                    Log.d("NotificationDebug", "onOutgoingCallDeclined: callee declined: ${callee?.id}")
+                    // For direct 1-on-1 call, end outgoing call immediately so caller doesn't stay stuck ringing
+                    if (callID == null || !callID.startsWith("call_group_")) {
+                        ZegoUIKitPrebuiltCallService.endCall()
+                    }
+                }
+
+                override fun onOutgoingCallTimeout(callID: String?, callees: MutableList<ZegoCallUser>?) {
+                    Log.d("NotificationDebug", "onOutgoingCallTimeout: callID=$callID")
+                    if (callID == null || !callID.startsWith("call_group_")) {
+                        ZegoUIKitPrebuiltCallService.endCall()
+                    }
+                }
             }
 
         ZegoUIKitPrebuiltCallService.init(

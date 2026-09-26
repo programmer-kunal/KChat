@@ -43,6 +43,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.OutlinedTextField
@@ -196,14 +197,14 @@ fun ContextSearchBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
-        containerColor = colorResource(id = R.color.dark_blue),
+        containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = {
             Box(
                 modifier = Modifier
                     .padding(vertical = 10.dp)
                     .size(width = 40.dp, height = 4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color.Gray.copy(alpha = 0.5f))
+                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
             )
         }
     ) {
@@ -237,13 +238,13 @@ fun ContextSearchBottomSheet(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(colorResource(id = R.color.light_blue).copy(alpha = 0.2f)),
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = "Context Search",
-                        tint = colorResource(id = R.color.light_blue),
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -251,13 +252,13 @@ fun ContextSearchBottomSheet(
                 Column {
                     Text(
                         text = "Context Search",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = "Search conversation with natural language",
-                        color = colorResource(id = R.color.light_blue).copy(alpha = 0.8f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp
                     )
                 }
@@ -279,7 +280,7 @@ fun ContextSearchBottomSheet(
                     placeholder = {
                         Text(
                             text = "e.g. When is the meeting?",
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             fontSize = 14.sp
                         )
                     },
@@ -294,13 +295,13 @@ fun ContextSearchBottomSheet(
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = colorResource(id = R.color.light_blue),
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                        focusedContainerColor = Color.White.copy(alpha = 0.05f),
-                        unfocusedContainerColor = Color.White.copy(alpha = 0.05f),
-                        cursorColor = colorResource(id = R.color.light_blue)
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                        cursorColor = MaterialTheme.colorScheme.primary
                     ),
                     trailingIcon = {
                         if (queryText.isNotBlank()) {
@@ -308,7 +309,7 @@ fun ContextSearchBottomSheet(
                                 Icon(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "Clear",
-                                    tint = Color.LightGray,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -326,15 +327,15 @@ fun ContextSearchBottomSheet(
                     onClick = { submitSearch(queryText) },
                     enabled = queryText.isNotBlank() && uiState !is ContextSearchUiState.Loading,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = colorResource(id = R.color.light_blue),
-                        disabledContainerColor = colorResource(id = R.color.light_blue).copy(alpha = 0.3f)
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                     ),
                     shape = RoundedCornerShape(16.dp),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     Text(
                         text = "Search",
-                        color = colorResource(id = R.color.dark_blue),
+                        color = MaterialTheme.colorScheme.onPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
@@ -349,7 +350,7 @@ fun ContextSearchBottomSheet(
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             text = "Suggested queries:",
-                            color = Color.LightGray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -364,15 +365,15 @@ fun ContextSearchBottomSheet(
                                     label = {
                                         Text(
                                             text = suggestion,
-                                            color = Color.White,
+                                            color = MaterialTheme.colorScheme.onSurface,
                                             fontSize = 12.sp
                                         )
                                     },
                                     colors = SuggestionChipDefaults.suggestionChipColors(
-                                        containerColor = Color.White.copy(alpha = 0.08f)
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                                     ),
                                     border = SuggestionChipDefaults.suggestionChipBorder(
-                                        borderColor = Color.White.copy(alpha = 0.15f),
+                                        borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                                         borderWidth = 1.dp,
                                         enabled = true
                                     ),
@@ -392,14 +393,14 @@ fun ContextSearchBottomSheet(
                         verticalArrangement = Arrangement.Center
                     ) {
                         CircularProgressIndicator(
-                            color = colorResource(id = R.color.light_blue),
+                            color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(36.dp),
                             strokeWidth = 3.dp
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
                             text = "Searching conversation context…",
-                            color = Color.LightGray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 14.sp
                         )
                     }
@@ -414,7 +415,7 @@ fun ContextSearchBottomSheet(
                     ) {
                         Text(
                             text = uiState.message,
-                            color = Color(0xFFFF6B6B),
+                            color = MaterialTheme.colorScheme.error,
                             fontSize = 14.sp,
                             modifier = Modifier.padding(horizontal = 8.dp)
                         )
@@ -425,20 +426,21 @@ fun ContextSearchBottomSheet(
                                     if (queryText.isNotBlank()) onSearch(queryText.trim())
                                 },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = colorResource(id = R.color.light_blue)
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
                                 ),
                                 shape = RoundedCornerShape(16.dp)
                             ) {
                                 Text(
                                     text = "Retry",
-                                    color = colorResource(id = R.color.dark_blue),
+                                    color = MaterialTheme.colorScheme.onPrimary,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
                             TextButton(onClick = onDismiss) {
                                 Text(
                                     text = "Close",
-                                    color = Color.LightGray
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -452,21 +454,21 @@ fun ContextSearchBottomSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(Color.White.copy(alpha = 0.05f))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                                 .padding(20.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
                                     text = "No relevant messages found.",
-                                    color = Color.White,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = "Try asking with different keywords or topics.",
-                                    color = Color.Gray,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 13.sp
                                 )
                             }
@@ -483,12 +485,12 @@ fun ContextSearchBottomSheet(
                                         modifier = Modifier
                                             .weight(1f, fill = false)
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(Color.White.copy(alpha = 0.1f))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
                                         Text(
                                             text = "Showing keyword matches",
-                                            color = Color.LightGray,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             fontSize = 11.sp,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
@@ -499,12 +501,12 @@ fun ContextSearchBottomSheet(
                                         modifier = Modifier
                                             .weight(1f, fill = false)
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(colorResource(id = R.color.light_blue).copy(alpha = 0.15f))
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
                                         Text(
                                             text = "Intent: ${searchResult.intent}",
-                                            color = colorResource(id = R.color.light_blue),
+                                            color = MaterialTheme.colorScheme.primary,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Medium,
                                             maxLines = 1,
@@ -519,7 +521,7 @@ fun ContextSearchBottomSheet(
 
                                 Text(
                                     text = "${searchResult.items.size} ${if (searchResult.items.size == 1) "result" else "results"}",
-                                    color = Color.Gray,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 12.sp,
                                     maxLines = 1,
                                     softWrap = false
@@ -572,8 +574,8 @@ private fun ContextSearchResultCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.06f))
-            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
             .padding(12.dp)
     ) {
@@ -586,7 +588,7 @@ private fun ContextSearchResultCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = if (item.isCurrentUser) "You" else item.senderName,
-                        color = if (item.isCurrentUser) colorResource(id = R.color.light_blue) else Color(0xFFFFD54F),
+                        color = if (item.isCurrentUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
                     )
@@ -594,7 +596,7 @@ private fun ContextSearchResultCard(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = item.formattedTime,
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 11.sp
                         )
                     }
@@ -603,7 +605,7 @@ private fun ContextSearchResultCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "Jump",
-                        color = colorResource(id = R.color.light_blue),
+                        color = MaterialTheme.colorScheme.primary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -611,7 +613,7 @@ private fun ContextSearchResultCard(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "Jump to message",
-                        tint = colorResource(id = R.color.light_blue),
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(12.dp)
                     )
                 }
@@ -621,7 +623,7 @@ private fun ContextSearchResultCard(
 
             Text(
                 text = item.messageText,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
                 maxLines = 4,

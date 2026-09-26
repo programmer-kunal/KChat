@@ -98,6 +98,8 @@ class MainActivity : FragmentActivity() {
 
         Log.d("NotificationDebug", "MainActivity onCreate. startChannelId=${this.startChannelId.value}, startChannelName=${this.startChannelName.value}, hasExtras=${intent.extras != null}")
 
+        com.example.kchat.ui.theme.ThemeManager.init(this)
+
         setContent {
             KChatTheme {
                 MainApp(startChannelId = this.startChannelId.value, startChannelName = this.startChannelName.value)

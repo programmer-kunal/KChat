@@ -1,0 +1,105 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+
+    <!-- Deep Blue Circular Background -->
+    <path
+        android:pathData="M48,4 A44,44 0 1,0 48,92 A44,44 0 1,0 48,4 Z"
+        android:fillColor="#0F172A"/>
+
+    <!-- Inner Radial Glow / Border Ring -->
+    <path
+        android:pathData="M48,8 A40,40 0 1,0 48,88 A40,40 0 1,0 48,8 Z"
+        android:fillColor="#1E293B"
+        android:strokeWidth="2.5"
+        android:strokeColor="#38BDF8"/>
+
+    <!-- Globe Grid: Horizontal Equator & Latitudes -->
+    <path
+        android:pathData="M8.5,48 L87.5,48"
+        android:strokeWidth="1.8"
+        android:strokeColor="#0284C7"
+        android:strokeLineCap="round"/>
+
+    <path
+        android:pathData="M16,32 C26,39 70,39 80,32"
+        android:strokeWidth="1.5"
+        android:strokeColor="#0369A1"
+        android:strokeLineCap="round"/>
+
+    <path
+        android:pathData="M16,64 C26,57 70,57 80,64"
+        android:strokeWidth="1.5"
+        android:strokeColor="#0369A1"
+        android:strokeLineCap="round"/>
+
+    <!-- Globe Grid: Vertical Central Meridian & Longitudes -->
+    <path
+        android:pathData="M48,8.5 L48,87.5"
+        android:strokeWidth="1.8"
+        android:strokeColor="#0284C7"
+        android:strokeLineCap="round"/>
+
+    <path
+        android:pathData="M48,8.5 C30,22 30,74 48,87.5"
+        android:strokeWidth="1.5"
+        android:strokeColor="#0369A1"
+        android:strokeLineCap="round"/>
+
+    <path
+        android:pathData="M48,8.5 C66,22 66,74 48,87.5"
+        android:strokeWidth="1.5"
+        android:strokeColor="#0369A1"
+        android:strokeLineCap="round"/>
+
+    <!-- Global Connection Nodes -->
+    <path
+        android:pathData="M24,40 A3,3 0 1,0 24,46 A3,3 0 1,0 24,40 Z"
+        android:fillColor="#38BDF8"/>
+    <path
+        android:pathData="M72,40 A3,3 0 1,0 72,46 A3,3 0 1,0 72,40 Z"
+        android:fillColor="#38BDF8"/>
+    <path
+        android:pathData="M34,26 A2.5,2.5 0 1,0 34,31 A2.5,2.5 0 1,0 34,26 Z"
+        android:fillColor="#7DD3FC"/>
+    <path
+        android:pathData="M62,70 A2.5,2.5 0 1,0 62,75 A2.5,2.5 0 1,0 62,70 Z"
+        android:fillColor="#7DD3FC"/>
+
+    <!-- Central KChat Speech Bubble -->
+    <path
+        android:pathData="M48,22 C34,22 23,32 23,45 C23,51 25.5,56.5 30,60.5 L28,71 L38.5,66 C41.5,67.3 44.7,68 48,68 C62,68 73,58 73,45 C73,32 62,22 48,22 Z"
+        android:fillColor="#0284C7"
+        android:strokeWidth="2"
+        android:strokeColor="#BAE6FD"/>
+
+    <!-- Iconic K Symbol in Center of Speech Bubble -->
+    <!-- Vertical stem -->
+    <path
+        android:pathData="M42,34 L42,56"
+        android:strokeWidth="4"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"/>
+
+    <!-- Upper diagonal -->
+    <path
+        android:pathData="M42,45 L54,34"
+        android:strokeWidth="4"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"/>
+
+    <!-- Lower diagonal -->
+    <path
+        android:pathData="M47,44 L55,56"
+        android:strokeWidth="4"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"/>
+
+    <!-- Global Sparkle / Signal -->
+    <path
+        android:pathData="M66,28 C66,30.5 67,31.5 69.5,31.5 C67,31.5 66,32.5 66,35 C66,32.5 65,31.5 62.5,31.5 C65,31.5 66,30.5 66,28 Z"
+        android:fillColor="#F0F9FF"/>
+
+</vector>

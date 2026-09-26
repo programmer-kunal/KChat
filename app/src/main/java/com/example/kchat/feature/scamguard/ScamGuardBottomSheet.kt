@@ -34,6 +34,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.SheetState
@@ -106,14 +107,14 @@ fun ScamGuardBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
-        containerColor = colorResource(id = R.color.dark_blue),
+        containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = {
             Box(
                 modifier = Modifier
                     .padding(vertical = 10.dp)
                     .size(width = 40.dp, height = 4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color.Gray.copy(alpha = 0.5f))
+                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
             )
         }
     ) {
@@ -136,13 +137,13 @@ fun ScamGuardBottomSheet(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(colorResource(id = R.color.light_blue).copy(alpha = 0.2f)),
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Security,
                         contentDescription = "Scam Guard",
-                        tint = colorResource(id = R.color.light_blue),
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -150,13 +151,13 @@ fun ScamGuardBottomSheet(
                 Column {
                     Text(
                         text = "Scam Guard",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = "AI-powered scam & phishing risk analysis",
-                        color = colorResource(id = R.color.light_blue).copy(alpha = 0.8f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp
                     )
                 }
@@ -167,7 +168,7 @@ fun ScamGuardBottomSheet(
             // Explanatory note
             Text(
                 text = "Analyzes only the messages you selected.",
-                color = Color.Gray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp
             )
 
@@ -183,21 +184,21 @@ fun ScamGuardBottomSheet(
                         verticalArrangement = Arrangement.Center
                     ) {
                         CircularProgressIndicator(
-                            color = colorResource(id = R.color.light_blue),
+                            color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(36.dp),
                             strokeWidth = 3.dp
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
                             text = "Analyzing selected messages…",
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Checking for phishing, fraudulent links & security risks",
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp
                         )
                     }
@@ -212,7 +213,7 @@ fun ScamGuardBottomSheet(
                     ) {
                         Text(
                             text = uiState.message,
-                            color = Color(0xFFEF5350),
+                            color = MaterialTheme.colorScheme.error,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -221,20 +222,21 @@ fun ScamGuardBottomSheet(
                             Button(
                                 onClick = onRetry,
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = colorResource(id = R.color.light_blue)
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
                                 ),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Text(
                                     text = "Try Again",
-                                    color = colorResource(id = R.color.dark_blue),
+                                    color = MaterialTheme.colorScheme.onPrimary,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
                             TextButton(onClick = onDismiss) {
                                 Text(
                                     text = "Close",
-                                    color = Color.LightGray
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -303,7 +305,7 @@ fun ScamGuardBottomSheet(
                                                 ScamRiskLevel.MEDIUM -> "Exercise caution with links or unusual requests"
                                                 ScamRiskLevel.HIGH -> "High probability of deceptive or fraudulent intent"
                                             },
-                                            color = Color.White.copy(alpha = 0.8f),
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                                             fontSize = 12.sp
                                         )
                                     }
@@ -317,21 +319,21 @@ fun ScamGuardBottomSheet(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color.White.copy(alpha = 0.05f))
-                                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
                                     .padding(14.dp)
                             ) {
                                 Column {
                                     Text(
                                         text = "Assessment Summary",
-                                        color = colorResource(id = R.color.light_blue),
+                                        color = MaterialTheme.colorScheme.primary,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = result.summary,
-                                        color = Color.White,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontSize = 13.sp,
                                         lineHeight = 18.sp
                                     )
@@ -343,7 +345,7 @@ fun ScamGuardBottomSheet(
                         item {
                             Text(
                                 text = "Why this may be suspicious",
-                                color = Color.LightGray,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -355,20 +357,20 @@ fun ScamGuardBottomSheet(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(Color.White.copy(alpha = 0.04f))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                                         .padding(12.dp)
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
                                             imageVector = Icons.Default.Info,
                                             contentDescription = null,
-                                            tint = Color.Gray,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
                                             text = "No significant scam indicators were detected in the selected messages.",
-                                            color = Color.LightGray,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             fontSize = 12.sp
                                         )
                                     }
@@ -380,8 +382,8 @@ fun ScamGuardBottomSheet(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(Color.White.copy(alpha = 0.05f))
-                                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
                                         .padding(12.dp)
                                 ) {
                                     Row(verticalAlignment = Alignment.Top) {
@@ -394,7 +396,7 @@ fun ScamGuardBottomSheet(
                                         )
                                         Text(
                                             text = indicator,
-                                            color = Color.White,
+                                            color = MaterialTheme.colorScheme.onSurface,
                                             fontSize = 13.sp,
                                             lineHeight = 18.sp
                                         )
@@ -409,7 +411,7 @@ fun ScamGuardBottomSheet(
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = "Recommended actions",
-                                    color = Color.LightGray,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -420,21 +422,21 @@ fun ScamGuardBottomSheet(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(colorResource(id = R.color.light_blue).copy(alpha = 0.06f))
-                                        .border(1.dp, colorResource(id = R.color.light_blue).copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
+                                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
                                         .padding(12.dp)
                                 ) {
                                     Row(verticalAlignment = Alignment.Top) {
                                         Text(
                                             text = "✓",
-                                            color = colorResource(id = R.color.light_blue),
+                                            color = MaterialTheme.colorScheme.primary,
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(end = 8.dp)
                                         )
                                         Text(
                                             text = action,
-                                            color = Color.White,
+                                            color = MaterialTheme.colorScheme.onSurface,
                                             fontSize = 12.sp,
                                             lineHeight = 17.sp
                                         )
@@ -453,22 +455,25 @@ fun ScamGuardBottomSheet(
                                     clipboard.setPrimaryClip(clip)
                                     Toast.makeText(context, "Analysis copied to clipboard", Toast.LENGTH_SHORT).show()
                                 },
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.White.copy(alpha = 0.1f)
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                                 ),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.ContentCopy,
                                     contentDescription = "Copy Analysis",
-                                    tint = Color.White,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "Copy Analysis",
-                                    color = Color.White,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Medium
                                 )

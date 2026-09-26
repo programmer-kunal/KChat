@@ -31,6 +31,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -93,8 +94,7 @@ fun VideoMessageBubble(
         thumbnail = VideoThumbnailLoader.loadThumbnail(videoUrl)
     }
 
-    val primaryColor = colorResource(id = R.color.light_blue)
-    val darkBlueColor = colorResource(id = R.color.dark_blue)
+    val primaryColor = MaterialTheme.colorScheme.primary
 
     Box(
         modifier = modifier

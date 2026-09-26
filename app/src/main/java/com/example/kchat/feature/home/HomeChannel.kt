@@ -7,5 +7,6 @@ data class HomeChannel(
     val lastTime: Long? = null,
     val lastSenderName: String? = null,
     val unreadCount: Int = 0,
-    val creatorUid: String? = null
+    val creatorUid: String? = null,
+    val imageUrl: String? = null
 )

@@ -22,6 +22,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
@@ -54,14 +55,14 @@ fun SmartReplyBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = colorResource(id = R.color.dark_blue),
+        containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = {
             Box(
                 modifier = Modifier
                     .padding(vertical = 10.dp)
                     .size(width = 40.dp, height = 4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color.Gray.copy(alpha = 0.5f))
+                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
             )
         }
     ) {
@@ -79,20 +80,20 @@ fun SmartReplyBottomSheet(
                 Icon(
                     imageVector = Icons.Default.AutoAwesome,
                     contentDescription = "Smart Reply",
-                    tint = colorResource(id = R.color.light_blue),
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
                         text = "KChat Smart Reply",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = "Emotion & Sentiment Intelligence",
-                        color = colorResource(id = R.color.light_blue).copy(alpha = 0.8f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp
                     )
                 }
@@ -110,14 +111,14 @@ fun SmartReplyBottomSheet(
                         verticalArrangement = Arrangement.Center
                     ) {
                         CircularProgressIndicator(
-                            color = colorResource(id = R.color.light_blue),
+                            color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(36.dp),
                             strokeWidth = 3.dp
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
                             text = "Analyzing conversational context...",
-                            color = Color.LightGray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 14.sp
                         )
                     }
@@ -132,7 +133,7 @@ fun SmartReplyBottomSheet(
                     ) {
                         Text(
                             text = uiState.message,
-                            color = Color(0xFFFF6B6B),
+                            color = MaterialTheme.colorScheme.error,
                             fontSize = 14.sp,
                             modifier = Modifier.padding(horizontal = 8.dp)
                         )
@@ -141,20 +142,21 @@ fun SmartReplyBottomSheet(
                             Button(
                                 onClick = onRetry,
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = colorResource(id = R.color.light_blue)
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
                                 ),
                                 shape = RoundedCornerShape(16.dp)
                             ) {
                                 Text(
                                     text = "Retry",
-                                    color = colorResource(id = R.color.dark_blue),
+                                    color = MaterialTheme.colorScheme.onPrimary,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
                             TextButton(onClick = onDismiss) {
                                 Text(
                                     text = "Close",
-                                    color = Color.LightGray
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -169,7 +171,8 @@ fun SmartReplyBottomSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
-                            .background(Color.White.copy(alpha = 0.06f))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
                             .padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
@@ -183,7 +186,7 @@ fun SmartReplyBottomSheet(
 
                     Text(
                         text = "Suggested replies:",
-                        color = Color.LightGray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -200,10 +203,10 @@ fun SmartReplyBottomSheet(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(colorResource(id = R.color.light_blue).copy(alpha = 0.12f))
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
                                     .border(
                                         width = 1.dp,
-                                        color = colorResource(id = R.color.light_blue).copy(alpha = 0.35f),
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
                                         shape = RoundedCornerShape(14.dp)
                                     )
                                     .clickable { onSuggestionSelected(suggestion) }
@@ -211,7 +214,7 @@ fun SmartReplyBottomSheet(
                             ) {
                                 Text(
                                     text = suggestion,
-                                    color = Color.White,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     fontSize = 14.sp,
                                     lineHeight = 20.sp
                                 )
@@ -230,13 +233,13 @@ fun SmartReplyBottomSheet(
                             Icon(
                                 imageVector = Icons.Default.Refresh,
                                 contentDescription = "Regenerate",
-                                tint = colorResource(id = R.color.light_blue),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Try another suggestion",
-                                color = colorResource(id = R.color.light_blue),
+                                color = MaterialTheme.colorScheme.primary,
                                 fontSize = 13.sp
                             )
                         }
@@ -256,12 +259,12 @@ private fun IntelligenceRow(label: String, value: String) {
     ) {
         Text(
             text = "$label:",
-            color = Color.LightGray,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 13.sp
         )
         Text(
             text = value,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium
         )

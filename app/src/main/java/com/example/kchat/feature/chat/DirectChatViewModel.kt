@@ -279,6 +279,9 @@ class DirectChatViewModel @Inject constructor() : ViewModel() {
         val uid = activeUid ?: ""
         val messages = msgSnap.children.mapNotNull { child ->
             val msg = child.getValue(Message::class.java)
+            if (uid.isNotEmpty() && msg != null && msg.senderId.isNotEmpty() && msg.senderId != uid && msg.deliveredBy?.get(uid) != true) {
+                child.ref.child("deliveredBy").child(uid).setValue(true)
+            }
             val key = child.key
             if (msg != null && msg.id.isEmpty() && key != null) {
                 msg.copy(id = key)
@@ -341,13 +344,15 @@ class DirectChatViewModel @Inject constructor() : ViewModel() {
                     val name = it.child("name").getValue(String::class.java) ?: return@forEach
                     val email = it.child("email").getValue(String::class.java) ?: ""
                     val imageUrl = it.child("imageUrl").getValue(String::class.java)
+                    val about = it.child("about").getValue(String::class.java)
 
                     tempList.add(
                         User(
                             uid = userUid,
                             name = name,
                             email = email,
-                            profileImage = imageUrl
+                            profileImage = imageUrl,
+                            about = about
                         )
                     )
                 }

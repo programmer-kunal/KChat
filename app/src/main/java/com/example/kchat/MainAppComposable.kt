@@ -11,9 +11,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.kchat.feature.auth.signin.SignInScreen
-import com.example.kchat.feature.auth.signup.SignUpScreen
 import com.example.kchat.feature.chat.ChatScreen
 import com.example.kchat.feature.chat.DirectChatScreen
+import com.example.kchat.feature.extension.KChatExtensionScreen
 import com.example.kchat.feature.home.HomeScreen
 import com.example.kchat.feature.splashscreen.SplashScreen
 import com.google.firebase.auth.FirebaseAuth
@@ -25,7 +25,6 @@ fun MainApp(startChannelId: String? = null, startChannelName: String? = null){
     Surface(modifier = Modifier.fillMaxSize()) {
         val navController= rememberNavController()
         val currentUser= FirebaseAuth.getInstance().currentUser
-        val start =if (currentUser!=null && currentUser.isEmailVerified) "home" else "login"
         
         val hasDeepLink = !startChannelId.isNullOrEmpty() && !startChannelName.isNullOrEmpty()
         val startDest = if (currentUser != null && currentUser.isEmailVerified && hasDeepLink) "home" else "splash"
@@ -40,25 +39,33 @@ fun MainApp(startChannelId: String? = null, startChannelName: String? = null){
             composable("login"){
                 SignInScreen(navController)
             }
-            composable("signup"){
-                SignUpScreen(navController)
-            }
             composable("home"){
                 HomeScreen(navController)
             }
+            composable("extension"){
+                KChatExtensionScreen(navController)
+            }
 
-            composable("chat/{channelId}&{channelName}", arguments = listOf(
-                navArgument("channelId"){
-                    type= NavType.StringType
-                },
-                navArgument("channelName"){
-                    type= NavType.StringType
-                }
-
-            )){
-                val channelId=it.arguments?.getString("channelId")?:""
-                val channelName=it.arguments?.getString("channelName")?:""
-                ChatScreen(navController,channelId,channelName)
+            composable(
+                route = "chat/{channelId}&{channelName}?targetMsgId={targetMsgId}",
+                arguments = listOf(
+                    navArgument("channelId") {
+                        type = NavType.StringType
+                    },
+                    navArgument("channelName") {
+                        type = NavType.StringType
+                    },
+                    navArgument("targetMsgId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { backStackEntry ->
+                val channelId = backStackEntry.arguments?.getString("channelId") ?: ""
+                val channelName = backStackEntry.arguments?.getString("channelName") ?: ""
+                val targetMsgId = backStackEntry.arguments?.getString("targetMsgId")
+                ChatScreen(navController, channelId, channelName, initialTargetMessageId = targetMsgId)
             }
 
         }
@@ -72,7 +79,7 @@ fun MainApp(startChannelId: String? = null, startChannelName: String? = null){
                 val currentRoute = navController.currentDestination?.route
                 Log.d("NotificationDebug", "Current navigation route before deep link: $currentRoute")
                 
-                if (currentRoute != "home" && currentRoute != "chat/{channelId}&{channelName}") {
+                if (currentRoute != "home" && currentRoute?.startsWith("chat/") != true) {
                     navController.navigate("home") {
                         popUpTo("splash") { inclusive = true }
                     }

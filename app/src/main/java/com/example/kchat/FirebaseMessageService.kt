@@ -38,18 +38,31 @@ class FirebaseMessageService : FirebaseMessagingService() {
             return
         }
 
-        // Suppress normal chat message notifications if the app is already in the foreground
-        if (KChat.isAppInForeground) {
-            Log.d("FCM_PROOF", "App is in foreground. Suppressing normal chat message notification to let UI handle it natively.")
-            return
-        }
-
+        val messageId = message.data["messageId"]
         val senderId = message.data["senderId"]
         val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
 
         if (senderId != null && senderId == currentUid) {
             return
         }
+
+        // Record message delivery reliably in RTDB for direct and custom group chats (excluding World Chat to prevent write amplification)
+        if (currentUid != null && channelId != "world_chat") {
+            markMessageAsDelivered(channelId, messageId)
+        }
+
+        // Suppress normal chat message notifications if the app is already in the foreground
+        if (KChat.isAppInForeground) {
+            Log.d("FCM_PROOF", "App is in foreground. Suppressing normal chat message notification to let UI handle it natively.")
+            return
+        }
+
+        // Suppress notifications if the user has muted this direct chat or group
+        if (com.example.kchat.feature.chat.ConversationMuteManager.isMuted(this, currentUid, channelId)) {
+            Log.d("FCM_PROOF", "Conversation/group $channelId is muted for user $currentUid. Suppressing notification.")
+            return
+        }
+
 
         val title: String?
         val body: String?
@@ -66,7 +79,8 @@ class FirebaseMessageService : FirebaseMessagingService() {
         val senderImage = message.data["senderImage"]
         val channelName = message.data["channelName"]
         var rawMessageText = message.data["messageText"] ?: body
-        if (channelId != null && !channelId.contains("_") && !senderName.isNullOrEmpty() && rawMessageText != null) {
+        val isGroupChat = channelId.startsWith("-") || channelId == "world_chat" || !channelId.contains("_")
+        if (isGroupChat && !senderName.isNullOrEmpty() && rawMessageText != null) {
             val prefix = "$senderName: "
             if (rawMessageText.startsWith(prefix)) {
                 rawMessageText = rawMessageText.substring(prefix.length)
@@ -108,7 +122,7 @@ class FirebaseMessageService : FirebaseMessagingService() {
         val safeTitle = title ?: "New Message"
         val safeMessage = message ?: ""
 
-        val isGroup = channelId != null && !channelId.contains("_")
+        val isGroup = channelId != null && (channelId.startsWith("-") || channelId == "world_chat" || !channelId.contains("_"))
         val groupName = if (isGroup) {
             channelName?.takeIf { it.isNotBlank() }
                 ?: title?.takeIf { it.isNotBlank() && it != "New Message" && it != "Group Chat" }
@@ -243,6 +257,28 @@ class FirebaseMessageService : FirebaseMessagingService() {
             startService(intent)
         } catch (e: Exception) {
             Log.e("FCM_PROOF", "Failed to forward new token to Zego", e)
+        }
+    }
+
+    private fun markMessageAsDelivered(channelId: String, messageId: String?) {
+        val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val dbRef = com.google.firebase.database.FirebaseDatabase.getInstance().reference
+            .child("messages").child(channelId)
+
+        if (!messageId.isNullOrEmpty()) {
+            dbRef.child(messageId).child("deliveredBy").child(currentUid).setValue(true)
+        } else {
+            dbRef.orderByChild("createdAt").limitToLast(5).addListenerForSingleValueEvent(object : com.google.firebase.database.ValueEventListener {
+                override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+                    snapshot.children.forEach { child ->
+                        val msg = child.getValue(com.example.kchat.model.Message::class.java)
+                        if (msg != null && msg.senderId != currentUid && msg.deliveredBy?.get(currentUid) != true) {
+                            child.ref.child("deliveredBy").child(currentUid).setValue(true)
+                        }
+                    }
+                }
+                override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
+            })
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.example.kchat.feature.scamguard
 
+import com.example.kchat.feature.extension.model.ExtensionScreenshot
 import com.example.kchat.model.Message
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
@@ -15,8 +16,8 @@ import javax.inject.Singleton
  * Implementation of [ScamGuardService] powered by Firebase AI Logic
  * and the Gemini Developer API using the gemini-3.5-flash-lite model.
  *
- * Operates strictly on-demand on user-selected messages with zero persistent storage
- * and zero background scanning.
+ * Operates strictly on-demand on user-selected or imported messages/screenshots
+ * with zero persistent storage and zero background scanning.
  */
 @Singleton
 class GeminiScamGuardService @Inject constructor() : ScamGuardService {
@@ -28,25 +29,27 @@ class GeminiScamGuardService @Inject constructor() : ScamGuardService {
 
     override suspend fun analyzeMessages(
         messages: List<Message>,
-        currentUserId: String
+        currentUserId: String,
+        screenshots: List<ExtensionScreenshot>
     ): Result<ScamGuardResult> = withContext(Dispatchers.IO) {
         runCatching {
-            if (messages.isEmpty()) {
+            val validScreenshots = screenshots.filter { it.bitmap != null }
+            if (messages.isEmpty() && validScreenshots.isEmpty()) {
                 return@runCatching ScamGuardResult(
                     riskLevel = ScamRiskLevel.LOW,
                     isSuspicious = false,
-                    summary = "No messages selected for analysis.",
+                    summary = "No messages or screenshots provided for analysis.",
                     indicators = emptyList(),
-                    recommendedActions = listOf("Select one or more messages to evaluate potential scam or phishing risks.")
+                    recommendedActions = listOf("Provide one or more messages or screenshots to evaluate potential scam or phishing risks.")
                 )
             }
 
-            // Always preserve chronological order of selected messages
+            // Always preserve chronological order of messages
             val chronologicalMessages = messages.sortedBy { it.createdAt }
 
             val formattedDialogue = buildString {
                 for (msg in chronologicalMessages) {
-                    val senderLabel = if (msg.senderId == currentUserId) {
+                    val senderLabel = if (msg.senderId == currentUserId || msg.senderName.equals("You", ignoreCase = true) || msg.senderName.equals("Me", ignoreCase = true)) {
                         "Me"
                     } else {
                         val name = msg.senderName.trim()
@@ -63,19 +66,12 @@ class GeminiScamGuardService @Inject constructor() : ScamGuardService {
                 }
             }
 
-            if (formattedDialogue.isBlank()) {
-                return@runCatching ScamGuardResult(
-                    riskLevel = ScamRiskLevel.LOW,
-                    isSuspicious = false,
-                    summary = "No message content available to evaluate.",
-                    indicators = emptyList(),
-                    recommendedActions = emptyList()
-                )
-            }
-
             val prompt = buildString {
                 appendLine("You are KChat Scam Guard, an AI conversational security assistant.")
-                appendLine("Carefully evaluate the user-selected messages below for potential scam, phishing, or social engineering risks.")
+                if (validScreenshots.isNotEmpty()) {
+                    appendLine("NOTE: The user has attached ${validScreenshots.size} screenshot(s) (${validScreenshots.joinToString { it.id }}). Carefully inspect any visible messages, URLs, phone numbers, payment requests, or text in the screenshot(s) in addition to any text below.")
+                }
+                appendLine("Carefully evaluate the conversation context below for potential scam, phishing, or social engineering risks.")
                 appendLine()
                 appendLine("EVALUATION CATEGORIES TO CHECK:")
                 appendLine("1. Phishing / suspicious or disguised links")
@@ -96,7 +92,7 @@ class GeminiScamGuardService @Inject constructor() : ScamGuardService {
                 appendLine("  * LOW: Normal conversation, benign requests, or insufficient evidence of deceptive intent.")
                 appendLine("  * MEDIUM: Contains suspicious patterns (e.g. unsolicited links, unusual urgency, vague offers) but lacks definitive malicious confirmation.")
                 appendLine("  * HIGH: Strong, unmistakable indicators of fraud (e.g. asking for OTP/passwords, bank transfer fraud, fake security suspension threats, known scam templates).")
-                appendLine("- Base your assessment ONLY on observable evidence in the supplied text.")
+                appendLine("- Base your assessment ONLY on observable evidence in the supplied text and screenshots.")
                 appendLine("- Treat URLs only as static text; do not assume a domain is malicious unless there is observable deception or phishing structure.")
                 appendLine("- Do NOT invent facts, identities, or external claims.")
                 appendLine("- If there is insufficient evidence, default to riskLevel 'LOW' and explain that no significant scam indicators were detected.")
@@ -112,13 +108,10 @@ class GeminiScamGuardService @Inject constructor() : ScamGuardService {
                 appendLine("  \"recommendedActions\": [\"Actionable safety recommendation 1\", \"Actionable safety recommendation 2\"]")
                 appendLine("}")
                 appendLine()
-                appendLine("Rules for JSON:")
-                appendLine("- 'indicators': 0 to 4 items based solely on visible evidence.")
-                appendLine("- 'recommendedActions': 1 to 4 practical safety steps (e.g. 'Do not share your OTP', 'Verify the sender through an official channel').")
-                appendLine("- Do not include markdown in JSON property values.")
-                appendLine()
-                appendLine("Selected Messages:")
-                appendLine(formattedDialogue)
+                if (formattedDialogue.isNotBlank()) {
+                    appendLine("Selected Messages:")
+                    appendLine(formattedDialogue)
+                }
             }
 
             val config = generationConfig {
@@ -130,18 +123,26 @@ class GeminiScamGuardService @Inject constructor() : ScamGuardService {
                     generationConfig = config
                 )
 
-            val response = model.generateContent(prompt)
-            val responseText = response.text ?: throw IllegalStateException("Empty response from AI model")
+            val response = if (validScreenshots.isNotEmpty()) {
+                val parts = mutableListOf<com.google.firebase.ai.type.Part>()
+                for (sc in validScreenshots) {
+                    parts.add(com.google.firebase.ai.type.ImagePart(sc.bitmap!!))
+                }
+                parts.add(com.google.firebase.ai.type.TextPart(prompt))
+                val multiModalContent = com.google.firebase.ai.type.Content(role = "user", parts = parts)
+                model.generateContent(multiModalContent)
+            } else {
+                model.generateContent(prompt)
+            }
 
-            parseScamGuardResponse(responseText)
+            val responseText = response.text ?: throw IllegalStateException("Empty response from AI model")
+            parseScamResponse(responseText)
         }
     }
 
-    /**
-     * Defensive JSON parser for Scam Guard response.
-     * Strips code fences, tolerates missing fields, and defaults safely.
-     */
-    fun parseScamGuardResponse(rawText: String): ScamGuardResult {
+    fun parseScamGuardResponse(rawText: String): ScamGuardResult = parseScamResponse(rawText)
+
+    internal fun parseScamResponse(rawText: String): ScamGuardResult {
         val cleaned = rawText
             .replace("```json", "")
             .replace("```", "")
@@ -150,10 +151,10 @@ class GeminiScamGuardService @Inject constructor() : ScamGuardService {
         val json = try {
             JSONObject(cleaned)
         } catch (e: Exception) {
-            val jsonStart = cleaned.indexOf('{')
-            val jsonEnd = cleaned.lastIndexOf('}')
-            if (jsonStart >= 0 && jsonEnd > jsonStart) {
-                JSONObject(cleaned.substring(jsonStart, jsonEnd + 1))
+            val start = cleaned.indexOf('{')
+            val end = cleaned.lastIndexOf('}')
+            if (start >= 0 && end > start) {
+                JSONObject(cleaned.substring(start, end + 1))
             } else {
                 throw e
             }
@@ -164,40 +165,30 @@ class GeminiScamGuardService @Inject constructor() : ScamGuardService {
         val isSuspicious = json.optBoolean("isSuspicious", riskLevel != ScamRiskLevel.LOW)
         val summary = json.optString("summary", "").trim()
 
-        fun extractList(key: String, maxItems: Int): List<String> {
-            val array = json.optJSONArray(key) ?: return emptyList()
-            val list = mutableListOf<String>()
-            for (i in 0 until array.length()) {
-                if (list.size >= maxItems) break
-                val item = array.optString(i, "").trim()
-                if (item.isNotEmpty()) {
-                    list.add(item)
-                }
+        val indicatorsList = mutableListOf<String>()
+        val indicatorsArray = json.optJSONArray("indicators")
+        if (indicatorsArray != null) {
+            for (i in 0 until indicatorsArray.length()) {
+                val item = indicatorsArray.optString(i, "").trim()
+                if (item.isNotBlank()) indicatorsList.add(item)
             }
-            return list
         }
 
-        val indicators = extractList("indicators", 4)
-        val recommendedActions = extractList("recommendedActions", 4).ifEmpty {
-            if (riskLevel == ScamRiskLevel.LOW) {
-                listOf("No action needed. Continue chatting normally.")
-            } else {
-                listOf("Do not click unfamiliar links or share sensitive information.")
+        val actionsList = mutableListOf<String>()
+        val actionsArray = json.optJSONArray("recommendedActions")
+        if (actionsArray != null) {
+            for (i in 0 until actionsArray.length()) {
+                val item = actionsArray.optString(i, "").trim()
+                if (item.isNotBlank()) actionsList.add(item)
             }
         }
 
         return ScamGuardResult(
             riskLevel = riskLevel,
             isSuspicious = isSuspicious,
-            summary = summary.ifBlank {
-                if (riskLevel == ScamRiskLevel.LOW) {
-                    "No significant scam or phishing indicators were detected in the selected messages."
-                } else {
-                    "Potential security or scam indicators were identified in the selected messages."
-                }
-            },
-            indicators = indicators,
-            recommendedActions = recommendedActions
+            summary = summary,
+            indicators = indicatorsList.take(4),
+            recommendedActions = actionsList.take(4)
         )
     }
 }

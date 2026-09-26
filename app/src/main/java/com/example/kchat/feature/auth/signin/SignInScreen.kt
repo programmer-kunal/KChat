@@ -1,56 +1,39 @@
 package com.example.kchat.feature.auth.signin
 
+import android.os.SystemClock
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
 import com.example.kchat.R
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
@@ -59,43 +42,27 @@ import com.google.android.gms.common.api.ApiException
 @Composable
 fun SignInScreen(navController: NavController) {
 
-    val viewModel:SignInViewModel=hiltViewModel()
-    val uiState=viewModel.state.collectAsState()
-    var email by remember {
-        mutableStateOf("")
+    val viewModel: SignInViewModel = hiltViewModel()
+    val uiState = viewModel.state.collectAsState()
+    val context = LocalContext.current
+    val scrollState = rememberScrollState()
+
+    var lastClickTime by remember { mutableLongStateOf(0L) }
+
+    // Google Sign-In setup
+    val googleSignInOptions = remember {
+        GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken("906912010882-p4e5he2c8o1uos9sruumcfhk8l4snn6l.apps.googleusercontent.com")
+            .requestEmail()
+            .build()
     }
-    var password by remember {
-        mutableStateOf("")
-    }
-    var passwordVisible by remember {
-        mutableStateOf(false)
-    }
-    val context= LocalContext.current
-    LaunchedEffect(key1 = uiState.value) {
-        when (uiState.value) {
-            is SignInState.Success -> {
-                Toast.makeText(context, "Logged in successfully!", Toast.LENGTH_SHORT).show()
-                navController.navigate("home") {
-                    popUpTo("signin") { inclusive = true }
-                }
-            }
-            is SignInState.Unverified -> {
-                Toast.makeText(context, "Please verify your email. A verification link has been sent.", Toast.LENGTH_LONG).show()
-            }
-            is SignInState.Error -> {
-                Toast.makeText(context, "Sign In failed. Invalid email or password.", Toast.LENGTH_SHORT).show()
-            }
-            else -> {}
-        }
-    }
-    
-    // --- Google Sign-In setup ---
-    val googleSignInOptions = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-        .requestIdToken("906912010882-p4e5he2c8o1uos9sruumcfhk8l4snn6l.apps.googleusercontent.com")
-        .requestEmail()
-        .build()
 
     val googleSignInClient = remember { GoogleSignIn.getClient(context, googleSignInOptions) }
+
+    // Pre-clear any cached Google session on entering the screen so chooser opens instantly
+    LaunchedEffect(Unit) {
+        googleSignInClient.signOut()
+    }
 
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -104,143 +71,266 @@ fun SignInScreen(navController: NavController) {
         try {
             val account = task.getResult(ApiException::class.java)
             val idToken = account.idToken
-            if (idToken != null) {
-                viewModel.signInWithGoogle(idToken)
+            if (!idToken.isNullOrEmpty()) {
+                viewModel.loginWithGoogle(idToken = idToken)
             } else {
-                Toast.makeText(context, "Google Sign In failed: Empty token", Toast.LENGTH_SHORT).show()
+                viewModel.resetState()
+                Toast.makeText(context, "Google Login failed: Empty token", Toast.LENGTH_SHORT).show()
             }
         } catch (e: ApiException) {
-            // 12501 code is user cancellation - handle cleanly without error message
-            if (e.statusCode != 12501) {
-                Toast.makeText(context, "Google Sign In failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            viewModel.resetState()
+            // 12501 code or 16 is user cancellation - remain cleanly on LoginScreen
+            if (e.statusCode != 12501 && e.statusCode != 16) {
+                Toast.makeText(context, "Google Login failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }
+        } catch (e: Exception) {
+            viewModel.resetState()
+            Toast.makeText(context, "Google Login failed: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
-    Scaffold(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier
-            .fillMaxSize()
-            .background(colorResource(id=R.color.dark_blue))
-            .padding(it)
-            .padding(16.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+    LaunchedEffect(uiState.value) {
+        when (val state = uiState.value) {
+            is SignInState.Success -> {
+                if (state.isNewUser) {
+                    Toast.makeText(context, "Welcome to KChat!", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Welcome back to KChat!", Toast.LENGTH_SHORT).show()
+                }
+                navController.navigate("home") {
+                    popUpTo("login") { inclusive = true }
+                }
+            }
+            is SignInState.Error -> {
+                Toast.makeText(context, state.message, Toast.LENGTH_LONG).show()
+            }
+            else -> {}
+        }
+    }
 
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF162542)
 
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues),
+            contentAlignment = Alignment.Center
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.logo), contentDescription = null,
+            Column(
                 modifier = Modifier
-                    .size(200.dp)
+                    .fillMaxWidth()
+                    .widthIn(max = 480.dp)
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 24.dp, vertical = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
 
+                // 1. KChat Logo
+                Image(
+                    painter = painterResource(id = R.drawable.logo),
+                    contentDescription = "KChat Logo",
+                    modifier = Modifier.size(118.dp),
+                    contentScale = ContentScale.Fit
+                )
 
-            )
-            OutlinedTextField(
-                value = email, onValueChange = { email = it },
-                modifier = Modifier.fillMaxWidth(),
-                colors = TextFieldDefaults.colors(
-                    unfocusedContainerColor = colorResource(id = R.color.dark_blue),
-                    focusedContainerColor = colorResource(id = R.color.dark_blue),
-                    unfocusedIndicatorColor = colorResource(id = R.color.light_blue),
-                    focusedIndicatorColor = colorResource(id = R.color.light_blue),
-                    unfocusedTextColor = Color.White,
-                    focusedTextColor = Color.White
-                ),
-                label = { Text(text = "Email", color = Color.White.copy(alpha = 0.7f)) })
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                modifier = Modifier.fillMaxWidth(),
-                colors = TextFieldDefaults.colors(
-                    unfocusedContainerColor = colorResource(id = R.color.dark_blue),
-                    focusedContainerColor = colorResource(id = R.color.dark_blue),
-                    unfocusedIndicatorColor = colorResource(id = R.color.light_blue),
-                    focusedIndicatorColor = colorResource(id = R.color.light_blue),
-                    unfocusedTextColor = Color.White,
-                    focusedTextColor = Color.White
-                ),
-                label = { Text(text = "Password", color = Color.White.copy(alpha = 0.7f)) },
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                trailingIcon = {
-                    val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(
-                            imageVector = image,
-                            contentDescription = "Toggle password visibility",
-                            tint = colorResource(id = R.color.light_blue)
-                        )
-                    }
-                }
-            )
-            Spacer(modifier = Modifier.size(16.dp))
-            if (uiState.value == SignInState.Loading) {
-                CircularProgressIndicator(color = colorResource(id = R.color.light_blue))
-            } else {
-                Button(
-                    onClick = { viewModel.signIn(email, password) },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = colorResource(id = R.color.light_blue),
-                        disabledContainerColor = colorResource(id = R.color.light_blue).copy(alpha = 0.35f),
-                        disabledContentColor = Color.White.copy(alpha = 0.6f)
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = email.isNotEmpty() && password.isNotEmpty() && (uiState.value == SignInState.Nothing || uiState.value == SignInState.Error || uiState.value == SignInState.Unverified)
-                ) {
-                    Text(text = "Sign In", fontWeight = FontWeight.Bold)
-                }
+                Spacer(modifier = Modifier.height(14.dp))
 
-                // --- Premium Google Sign-In Button ---
-                Button(
-                    onClick = {
-                        googleSignInClient.signOut().addOnCompleteListener {
-                            googleSignInLauncher.launch(googleSignInClient.signInIntent)
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.DarkGray
-                    ),
-                    shape = RoundedCornerShape(30.dp),
+                // 2. Branding: Title & Subtitle
+                Text(
+                    text = "KChat",
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "AI That Understands Your Conversations.",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 3. Information Description
+                Text(
+                    text = "KChat is an AI-powered intelligent real-time communication platform designed to make conversations smarter, more meaningful, and secure.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 18.sp,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // 4. AI Feature Highlights (2x2 Grid)
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    elevation = ButtonDefaults.buttonElevation(
-                        defaultElevation = 2.dp
-                    )
+                        .height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_google),
-                            contentDescription = "Google Logo",
-                            tint = Color.Unspecified,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = "Sign in with Google",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                    }
+                    AiFeatureCard(
+                        icon = Icons.Default.AutoAwesome,
+                        title = "Smart Reply",
+                        description = "Generate natural replies based on tone, sentiment, intent and context.",
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                    )
+                    AiFeatureCard(
+                        icon = Icons.Default.Description,
+                        title = "Thread Summary",
+                        description = "Turn long conversations into key points, decisions, action items and deadlines.",
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                    )
                 }
 
-                TextButton(
-                    onClick = { navController.navigate("signup") },
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = "Don't have an account? Sign Up",
-                        color = colorResource(id = R.color.light_blue))
+                    AiFeatureCard(
+                        icon = Icons.Default.Search,
+                        title = "Context Search",
+                        description = "Find specific information and answers from your conversations using natural-language queries.",
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                    )
+                    AiFeatureCard(
+                        icon = Icons.Default.Security,
+                        title = "Scam Guard",
+                        description = "Detect phishing, fraud, impersonation, suspicious links and other scam indicators.",
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // 5. Login with Google Button / Loading State
+                if (uiState.value is SignInState.Loading) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                } else {
+                    Button(
+                        onClick = {
+                            val currentTime = SystemClock.elapsedRealtime()
+                            if (currentTime - lastClickTime < 1000L) {
+                                return@Button
+                            }
+                            lastClickTime = currentTime
+
+                            // Initiate asynchronous signOut without blocking chooser launch
+                            googleSignInClient.signOut()
+                            googleSignInLauncher.launch(googleSignInClient.signInIntent)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isDark) Color.DarkGray else MaterialTheme.colorScheme.surface,
+                            contentColor = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
+                        ),
+                        border = if (!isDark) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
+                        shape = RoundedCornerShape(30.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = 2.dp
+                        )
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_google),
+                                contentDescription = "Google Logo",
+                                tint = Color.Unspecified,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Login with Google",
+                                color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
-@Preview(showBackground = true)
-@Composable
-fun PreviewSignInScreen(){
-    SignInScreen(navController = rememberNavController())
 
+@Composable
+private fun AiFeatureCard(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(11.dp),
+            verticalArrangement = Arrangement.Top
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = title,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                maxLines = 1
+            )
+
+            Spacer(modifier = Modifier.height(3.dp))
+
+            Text(
+                text = description,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                lineHeight = 15.sp,
+                softWrap = true
+            )
+        }
+    }
 }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -82,29 +84,29 @@ fun AudioMessageBubble(
     }
 
     // Color theme matching KChat's design system
-    val primaryColor = colorResource(id = R.color.light_blue)
-    val darkBlueColor = colorResource(id = R.color.dark_blue)
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF162542)
+    val primaryColor = MaterialTheme.colorScheme.primary
 
     val playButtonBg = if (isCurrentUser) Color.White else primaryColor
-    val playButtonIconTint = if (isCurrentUser) darkBlueColor else darkBlueColor
+    val playButtonIconTint = if (isCurrentUser) primaryColor else MaterialTheme.colorScheme.onPrimary
 
     val activeTrackColor = if (isCurrentUser) Color.White else primaryColor
-    val inactiveTrackColor = if (isCurrentUser) Color.White.copy(alpha = 0.35f) else Color.Gray.copy(alpha = 0.5f)
+    val inactiveTrackColor = if (isCurrentUser) Color.White.copy(alpha = 0.35f) else (if (isDark) Color.Gray.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
     val thumbColor = if (isCurrentUser) Color.White else primaryColor
 
-    val timerTextColor = if (isCurrentUser) Color.White.copy(alpha = 0.9f) else Color.LightGray
+    val timerTextColor = if (isCurrentUser) Color.White.copy(alpha = 0.9f) else (if (isDark) Color.LightGray else MaterialTheme.colorScheme.onSurfaceVariant)
     val micBadgeTint = if (isCurrentUser) Color.White.copy(alpha = 0.75f) else primaryColor
 
     Row(
         modifier = modifier
-            .width(220.dp)
-            .padding(vertical = 4.dp),
+            .widthIn(min = 190.dp, max = 215.dp)
+            .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Play / Pause Circle Button
         Box(
             modifier = Modifier
-                .size(42.dp)
+                .size(36.dp)
                 .clip(CircleShape)
                 .background(playButtonBg)
                 .clickable(
@@ -123,11 +125,11 @@ fun AudioMessageBubble(
                 imageVector = if (isThisPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                 contentDescription = if (isThisPlaying) "Pause voice message" else "Play voice message",
                 tint = playButtonIconTint,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(20.dp)
             )
         }
 
-        Spacer(modifier = Modifier.width(10.dp))
+        Spacer(modifier = Modifier.width(8.dp))
 
         // Slider and Time / Mic metadata
         Column(

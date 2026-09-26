@@ -1,4 +1,4 @@
-﻿package com.example.kchat.feature.contextsearch
+package com.example.kchat.feature.contextsearch
 
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -30,14 +30,39 @@ data class ContextSearchResultItem(
 
 /**
  * Result container for Context-Aware Search containing the query,
- * the detected intent (if any), and the list of grounded message items.
+ * the detected intent (if any), grounded message items, and grounded screenshot IDs.
  */
 data class ContextSearchResult(
     val query: String,
     val intent: String = "",
     val items: List<ContextSearchResultItem> = emptyList(),
+    val matchingImageIds: List<String> = emptyList(),
+    val answer: String = "",
     val isFallbackMatch: Boolean = false
 ) {
     val isEmpty: Boolean
-        get() = items.isEmpty()
+        get() = items.isEmpty() && matchingImageIds.isEmpty() && answer.isBlank()
+
+    fun toFormattedText(): String = buildString {
+        appendLine("🔎 Context Search: \"$query\"")
+        if (intent.isNotBlank()) {
+            appendLine("Intent: $intent")
+        }
+        if (answer.isNotBlank()) {
+            appendLine()
+            appendLine("Answer:")
+            appendLine(answer)
+        }
+        if (items.isNotEmpty()) {
+            appendLine()
+            appendLine("Referenced Messages:")
+            items.forEach { item ->
+                appendLine("[${item.messageId}] ${item.senderName}: ${item.messageText}")
+            }
+        }
+        if (matchingImageIds.isNotEmpty()) {
+            appendLine()
+            appendLine("Referenced Screenshots: ${matchingImageIds.joinToString()}")
+        }
+    }.trim()
 }

@@ -26,16 +26,23 @@ fun SplashScreen(navController: NavController) {
         delay(2000)
 
         val currentUser = Firebase.auth.currentUser
-        if (currentUser != null && currentUser.isEmailVerified) {
-            navController.navigate("home") {
+        if (currentUser == null) {
+            navController.navigate("login") {
                 popUpTo("splash") { inclusive = true }
             }
         } else {
-            if (currentUser != null) {
-                Firebase.auth.signOut()
-            }
-            navController.navigate("login") {
-                popUpTo("splash") { inclusive = true }
+            currentUser.reload().addOnCompleteListener {
+                val isVerified = currentUser.isEmailVerified
+                if (isVerified) {
+                    navController.navigate("home") {
+                        popUpTo("splash") { inclusive = true }
+                    }
+                } else {
+                    Firebase.auth.signOut()
+                    navController.navigate("login") {
+                        popUpTo("splash") { inclusive = true }
+                    }
+                }
             }
         }
     }

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
@@ -88,14 +89,14 @@ fun AttachmentBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = colorResource(id = R.color.dark_blue),
+        containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = {
             Box(
                 modifier = Modifier
                     .padding(vertical = 10.dp)
                     .size(width = 40.dp, height = 4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color.Gray.copy(alpha = 0.5f))
+                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
             )
         }
     ) {
@@ -122,13 +123,13 @@ fun AttachmentBottomSheet(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(CircleShape)
-                                        .background(colorResource(id = R.color.light_blue).copy(alpha = 0.2f)),
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         painter = painterResource(id = R.drawable.attach),
                                         contentDescription = "Attach",
-                                        tint = colorResource(id = R.color.light_blue),
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -136,13 +137,13 @@ fun AttachmentBottomSheet(
                                 Column {
                                     Text(
                                         text = "Attach",
-                                        color = Color.White,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(
                                         text = "Share media and files",
-                                        color = colorResource(id = R.color.light_blue).copy(alpha = 0.8f),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 12.sp
                                     )
                                 }
@@ -218,7 +219,7 @@ fun AttachmentBottomSheet(
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                         contentDescription = "Back",
-                                        tint = colorResource(id = R.color.light_blue),
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(22.dp)
                                     )
                                 }
@@ -227,13 +228,13 @@ fun AttachmentBottomSheet(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(CircleShape)
-                                        .background(colorResource(id = R.color.light_blue).copy(alpha = 0.2f)),
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Image,
                                         contentDescription = "Images",
-                                        tint = colorResource(id = R.color.light_blue),
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -241,13 +242,13 @@ fun AttachmentBottomSheet(
                                 Column {
                                     Text(
                                         text = "Send Images",
-                                        color = Color.White,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(
                                         text = "Choose camera or gallery",
-                                        color = colorResource(id = R.color.light_blue).copy(alpha = 0.8f),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 12.sp
                                     )
                                 }
@@ -296,7 +297,7 @@ fun AttachmentBottomSheet(
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                         contentDescription = "Back",
-                                        tint = colorResource(id = R.color.light_blue),
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(22.dp)
                                     )
                                 }
@@ -305,13 +306,13 @@ fun AttachmentBottomSheet(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(CircleShape)
-                                        .background(colorResource(id = R.color.light_blue).copy(alpha = 0.2f)),
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Videocam,
                                         contentDescription = "Video",
-                                        tint = colorResource(id = R.color.light_blue),
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -319,13 +320,13 @@ fun AttachmentBottomSheet(
                                 Column {
                                     Text(
                                         text = "Send Videos",
-                                        color = Color.White,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(
                                         text = "Record video or choose from gallery",
-                                        color = colorResource(id = R.color.light_blue).copy(alpha = 0.8f),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 12.sp
                                     )
                                 }
@@ -383,13 +384,13 @@ private fun AttachmentOptionCard(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
             .background(
-                if (isActive) colorResource(id = R.color.light_blue).copy(alpha = 0.12f)
-                else Color.White.copy(alpha = 0.05f)
+                if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                else MaterialTheme.colorScheme.surfaceVariant
             )
             .border(
                 width = 1.dp,
-                color = if (isActive) colorResource(id = R.color.light_blue).copy(alpha = 0.45f)
-                else Color.White.copy(alpha = 0.12f),
+                color = if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                 shape = RoundedCornerShape(16.dp)
             )
             .clickable(onClick = onClick)
@@ -409,15 +410,15 @@ private fun AttachmentOptionCard(
                         .size(32.dp)
                         .clip(CircleShape)
                         .background(
-                            if (isActive) colorResource(id = R.color.light_blue).copy(alpha = 0.25f)
-                            else Color.White.copy(alpha = 0.08f)
+                            if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = title,
-                        tint = if (isActive) colorResource(id = R.color.light_blue) else Color.LightGray,
+                        tint = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -427,14 +428,14 @@ private fun AttachmentOptionCard(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
                         .background(
-                            if (isActive) colorResource(id = R.color.light_blue).copy(alpha = 0.22f)
-                            else Color.White.copy(alpha = 0.1f)
+                            if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
                         )
                         .padding(horizontal = 7.dp, vertical = 2.dp)
                 ) {
                     Text(
                         text = statusBadge,
-                        color = if (isActive) colorResource(id = R.color.light_blue) else Color.LightGray,
+                        color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -445,7 +446,7 @@ private fun AttachmentOptionCard(
 
             Text(
                 text = title,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -454,7 +455,7 @@ private fun AttachmentOptionCard(
 
             Text(
                 text = subtitle,
-                color = Color.LightGray.copy(alpha = 0.85f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
                 lineHeight = 15.sp,
                 maxLines = 2

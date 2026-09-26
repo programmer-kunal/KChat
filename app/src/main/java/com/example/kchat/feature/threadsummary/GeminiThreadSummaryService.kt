@@ -1,5 +1,6 @@
-﻿package com.example.kchat.feature.threadsummary
+package com.example.kchat.feature.threadsummary
 
+import com.example.kchat.feature.extension.model.ExtensionScreenshot
 import com.example.kchat.model.Message
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
@@ -14,33 +15,36 @@ import javax.inject.Singleton
 /**
  * Implementation of [ThreadSummaryService] powered by Firebase AI Logic
  * and the Gemini Developer API (gemini-3.5-flash-lite).
+ * Supports both internal messages and external extension context (text + screenshots).
  */
 @Singleton
 class GeminiThreadSummaryService @Inject constructor() : ThreadSummaryService {
 
     companion object {
         private const val MODEL_NAME = "gemini-3.5-flash-lite"
-        private const val MAX_CONTEXT_MESSAGES = 50
+        private const val MAX_CONTEXT_MESSAGES = 60
         private const val MAX_MESSAGE_CHAR_LENGTH = 500
     }
 
     override suspend fun summarizeThread(
         messages: List<Message>,
-        currentUserId: String
+        currentUserId: String,
+        screenshots: List<ExtensionScreenshot>
     ): Result<ThreadSummaryResult> = withContext(Dispatchers.IO) {
         runCatching {
-            if (messages.isEmpty()) {
+            val validScreenshots = screenshots.filter { it.bitmap != null }
+            if (messages.isEmpty() && validScreenshots.isEmpty()) {
                 return@runCatching ThreadSummaryResult()
             }
 
-            // Safe bounded context: last 50 messages in chronological order
+            // Safe bounded context: last 60 messages in chronological order
             val boundedMessages = messages
                 .takeLast(MAX_CONTEXT_MESSAGES)
                 .sortedBy { it.createdAt }
 
             val formattedDialogue = buildString {
                 for (msg in boundedMessages) {
-                    val senderLabel = if (msg.senderId == currentUserId) {
+                    val senderLabel = if (msg.senderId == currentUserId || msg.senderName.equals("You", ignoreCase = true) || msg.senderName.equals("Me", ignoreCase = true)) {
                         "Me"
                     } else {
                         val name = msg.senderName.trim()
@@ -56,13 +60,16 @@ class GeminiThreadSummaryService @Inject constructor() : ThreadSummaryService {
                 }
             }
 
-            if (formattedDialogue.isBlank()) {
+            if (formattedDialogue.isBlank() && validScreenshots.isEmpty()) {
                 return@runCatching ThreadSummaryResult()
             }
 
             val prompt = buildString {
                 appendLine("You are KChat Thread Summary, an AI conversational intelligence assistant.")
-                appendLine("Analyze the 1-to-1 conversation dialogue below and summarize key information into concise structured JSON.")
+                if (validScreenshots.isNotEmpty()) {
+                    appendLine("NOTE: The user has attached ${validScreenshots.size} screenshot(s) of conversation(s) (${validScreenshots.joinToString { it.id }}). Please analyze visible content in the screenshot(s) in addition to any conversation dialogue below.")
+                }
+                appendLine("Analyze the conversation below and summarize key information into concise structured JSON.")
                 appendLine()
                 appendLine("Extract items under these 5 categories:")
                 appendLine("1. 'keyPoints': Essential topics discussed or core conversation context.")
@@ -72,9 +79,9 @@ class GeminiThreadSummaryService @Inject constructor() : ThreadSummaryService {
                 appendLine("5. 'importantDetails': Key numbers, locations, or specific facts shared.")
                 appendLine()
                 appendLine("STRICT ACCURACY & ANTI-HALLUCINATION RULES:")
-                appendLine("- Summarize ONLY facts, statements, and commitments explicitly present in the dialogue.")
-                appendLine("- Do NOT invent or assume decisions, tasks, deadlines, people, or facts that are not confirmed in the dialogue.")
-                appendLine("- If a category has no relevant or confirmed information in the dialogue, return an empty array [] for that category.")
+                appendLine("- Summarize ONLY facts, statements, and commitments explicitly present in the dialogue or screenshots.")
+                appendLine("- Do NOT invent or assume decisions, tasks, deadlines, people, or facts that are not confirmed.")
+                appendLine("- If a category has no relevant or confirmed information, return an empty array [] for that category.")
                 appendLine("- Do NOT report suggestions or uncertain possibilities as confirmed decisions.")
                 appendLine("- Preserve exact names, numbers, dates, and times when mentioned.")
                 appendLine("- Keep each item concise (1-2 sentences).")
@@ -87,8 +94,10 @@ class GeminiThreadSummaryService @Inject constructor() : ThreadSummaryService {
                 appendLine("  \"importantDetails\": [\"...\"]")
                 appendLine("}")
                 appendLine()
-                appendLine("Conversation Dialogue:")
-                appendLine(formattedDialogue)
+                if (formattedDialogue.isNotBlank()) {
+                    appendLine("Conversation Dialogue:")
+                    appendLine(formattedDialogue)
+                }
             }
 
             val config = generationConfig {
@@ -100,9 +109,19 @@ class GeminiThreadSummaryService @Inject constructor() : ThreadSummaryService {
                     generationConfig = config
                 )
 
-            val response = model.generateContent(prompt)
-            val responseText = response.text ?: throw IllegalStateException("Empty response from AI model")
+            val response = if (validScreenshots.isNotEmpty()) {
+                val parts = mutableListOf<com.google.firebase.ai.type.Part>()
+                for (sc in validScreenshots) {
+                    parts.add(com.google.firebase.ai.type.ImagePart(sc.bitmap!!))
+                }
+                parts.add(com.google.firebase.ai.type.TextPart(prompt))
+                val multiModalContent = com.google.firebase.ai.type.Content(role = "user", parts = parts)
+                model.generateContent(multiModalContent)
+            } else {
+                model.generateContent(prompt)
+            }
 
+            val responseText = response.text ?: throw IllegalStateException("Empty response from AI model")
             parseSummaryResponse(responseText)
         }
     }
@@ -116,21 +135,21 @@ class GeminiThreadSummaryService @Inject constructor() : ThreadSummaryService {
         val json = try {
             JSONObject(cleaned)
         } catch (e: Exception) {
-            val jsonStart = cleaned.indexOf('{')
-            val jsonEnd = cleaned.lastIndexOf('}')
-            if (jsonStart >= 0 && jsonEnd > jsonStart) {
-                JSONObject(cleaned.substring(jsonStart, jsonEnd + 1))
+            val start = cleaned.indexOf('{')
+            val end = cleaned.lastIndexOf('}')
+            if (start >= 0 && end > start) {
+                JSONObject(cleaned.substring(start, end + 1))
             } else {
                 throw e
             }
         }
 
-        fun extractList(key: String): List<String> {
+        fun extractStringList(key: String): List<String> {
             val array = json.optJSONArray(key) ?: return emptyList()
             val list = mutableListOf<String>()
             for (i in 0 until array.length()) {
                 val item = array.optString(i, "").trim()
-                if (item.isNotEmpty()) {
+                if (item.isNotBlank()) {
                     list.add(item)
                 }
             }
@@ -138,11 +157,11 @@ class GeminiThreadSummaryService @Inject constructor() : ThreadSummaryService {
         }
 
         return ThreadSummaryResult(
-            keyPoints = extractList("keyPoints"),
-            decisions = extractList("decisions"),
-            tasks = extractList("tasks"),
-            deadlines = extractList("deadlines"),
-            importantDetails = extractList("importantDetails")
+            keyPoints = extractStringList("keyPoints"),
+            decisions = extractStringList("decisions"),
+            tasks = extractStringList("tasks"),
+            deadlines = extractStringList("deadlines"),
+            importantDetails = extractStringList("importantDetails")
         )
     }
 }

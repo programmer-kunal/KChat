@@ -1,5 +1,6 @@
-﻿package com.example.kchat.feature.contextsearch
+package com.example.kchat.feature.contextsearch
 
+import com.example.kchat.feature.extension.model.ExtensionScreenshot
 import com.example.kchat.model.Message
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
@@ -15,12 +16,11 @@ import javax.inject.Singleton
  * Implementation of [ContextSearchService] powered by Firebase AI Logic
  * and the Gemini Developer API (gemini-3.5-flash-lite).
  *
- * Employs a hybrid strategy:
- * 1. Primary: Gemini semantic intent analysis and candidate message ID ranking.
- * 2. Fallback: Local keyword/token matching if the network/AI call is unavailable.
- *
- * Source-of-truth rule: Returned search results are ALWAYS grounded in the original
- * local Message objects. Gemini never writes or rewrites message content.
+ * Employs strict local ID validation:
+ * 1. Primary: Gemini semantic intent analysis and candidate ID ranking.
+ * 2. Strict ID Grounding: Every returned ID is locally verified against the supplied
+ *    message map and screenshot map. Unsupplied IDs are discarded.
+ * 3. Fallback: Local keyword/token matching if the network/AI call is unavailable.
  */
 @Singleton
 class GeminiContextSearchService @Inject constructor() : ContextSearchService {
@@ -58,18 +58,18 @@ class GeminiContextSearchService @Inject constructor() : ContextSearchService {
     override suspend fun searchConversation(
         query: String,
         messages: List<Message>,
-        currentUserId: String
+        currentUserId: String,
+        screenshots: List<ExtensionScreenshot>
     ): Result<ContextSearchResult> = withContext(Dispatchers.IO) {
         val trimmedQuery = query.trim()
-        if (trimmedQuery.isBlank() || messages.isEmpty()) {
+        val validScreenshots = screenshots.filter { it.bitmap != null }
+        if (trimmedQuery.isBlank() || (messages.isEmpty() && validScreenshots.isEmpty())) {
             return@withContext Result.success(ContextSearchResult(query = trimmedQuery))
         }
 
-        // Map messages by genuine ID for strict local validation
+        // Map messages and screenshots by local ID for strict validation
         val messageMap = messages.filter { it.id.isNotBlank() }.associateBy { it.id }
-        if (messageMap.isEmpty()) {
-            return@withContext Result.success(ContextSearchResult(query = trimmedQuery))
-        }
+        val screenshotMap = validScreenshots.associateBy { it.id }
 
         // Bounded candidate context: up to 60 messages in chronological order
         val candidateMessages = messages
@@ -80,7 +80,7 @@ class GeminiContextSearchService @Inject constructor() : ContextSearchService {
         try {
             val formattedCandidates = buildString {
                 for (msg in candidateMessages) {
-                    val senderLabel = if (msg.senderId == currentUserId) {
+                    val senderLabel = if (msg.senderId == currentUserId || msg.senderName.equals("You", ignoreCase = true) || msg.senderName.equals("Me", ignoreCase = true)) {
                         "Me"
                     } else {
                         val name = msg.senderName.trim()
@@ -98,24 +98,37 @@ class GeminiContextSearchService @Inject constructor() : ContextSearchService {
 
             val prompt = buildString {
                 appendLine("You are KChat Context Search, an AI conversational search engine.")
-                appendLine("Your task is to identify which messages in the dialogue below are relevant to answering or addressing the user's natural-language query.")
+                appendLine("Your task is to identify which messages and/or screenshots in the provided context answer or are relevant to the user's natural-language query.")
                 appendLine()
                 appendLine("User Search Query: \"$trimmedQuery\"")
                 appendLine()
+                if (validScreenshots.isNotEmpty()) {
+                    appendLine("ATTACHED SCREENSHOTS:")
+                    validScreenshots.forEach { sc ->
+                        appendLine("- Screenshot ID: \"${sc.id}\" (Image content is attached in the prompt)")
+                    }
+                    appendLine()
+                }
                 appendLine("STRICT RULES:")
-                appendLine("1. Analyze the semantic intent of the query (e.g. dates/times, decisions, assigned tasks, locations, confirmations, or specific topics).")
-                appendLine("2. Identify candidate messages that directly answer, discuss, or provide relevant context for the query.")
-                appendLine("3. Select between 1 and 6 of the most relevant message IDs from the provided dialogue. Order them from most relevant to least relevant.")
-                appendLine("4. Use ONLY IDs that appear verbatim in the candidate list. NEVER invent or hallucinate message IDs.")
-                appendLine("5. If no messages in the dialogue are relevant to the query, return an empty array [] for 'relevantMessageIds'. Do NOT guess.")
-                appendLine("6. Return valid JSON only matching this exact schema without markdown fences:")
+                appendLine("1. Analyze the semantic intent of the query.")
+                appendLine("2. Identify candidate messages or screenshots that directly answer, discuss, or provide relevant context.")
+                appendLine("3. Use ONLY IDs that appear verbatim in the candidate list. NEVER invent or hallucinate IDs.")
+                appendLine("4. If relevant messages exist, return their IDs in 'relevantMessageIds'.")
+                appendLine("5. If an attached screenshot is relevant, return its ID (e.g. \"${validScreenshots.firstOrNull()?.id ?: "image_001"}\") in 'relevantImageIds'.")
+                appendLine("6. Provide a concise, direct answer in 'answer' based strictly on the context.")
+                appendLine("7. If no context is relevant, return empty arrays [] and an explanation in 'answer'. Do NOT guess.")
+                appendLine("8. Return valid JSON only matching this exact schema without markdown fences:")
                 appendLine("{")
                 appendLine("  \"intent\": \"Brief description of detected query intent\",")
-                appendLine("  \"relevantMessageIds\": [\"id_1\", \"id_2\"]")
+                appendLine("  \"answer\": \"Direct concise answer based on context\",")
+                appendLine("  \"relevantMessageIds\": [\"id_1\", \"id_2\"],")
+                appendLine("  \"relevantImageIds\": [\"image_001\"]")
                 appendLine("}")
                 appendLine()
-                appendLine("Candidate Dialogue:")
-                appendLine(formattedCandidates)
+                if (formattedCandidates.isNotBlank()) {
+                    appendLine("Candidate Dialogue:")
+                    appendLine(formattedCandidates)
+                }
             }
 
             val config = generationConfig {
@@ -127,10 +140,20 @@ class GeminiContextSearchService @Inject constructor() : ContextSearchService {
                     generationConfig = config
                 )
 
-            val response = model.generateContent(prompt)
-            val responseText = response.text ?: throw IllegalStateException("Empty response from AI model")
+            val response = if (validScreenshots.isNotEmpty()) {
+                val parts = mutableListOf<com.google.firebase.ai.type.Part>()
+                for (sc in validScreenshots) {
+                    parts.add(com.google.firebase.ai.type.ImagePart(sc.bitmap!!))
+                }
+                parts.add(com.google.firebase.ai.type.TextPart(prompt))
+                val multiModalContent = com.google.firebase.ai.type.Content(role = "user", parts = parts)
+                model.generateContent(multiModalContent)
+            } else {
+                model.generateContent(prompt)
+            }
 
-            val parsedResult = parseGeminiResponse(responseText, messageMap, trimmedQuery, currentUserId)
+            val responseText = response.text ?: throw IllegalStateException("Empty response from AI model")
+            val parsedResult = parseGeminiResponse(responseText, messageMap, screenshotMap, trimmedQuery, currentUserId)
             Result.success(parsedResult)
         } catch (e: Exception) {
             // Fallback: local keyword/token matching when AI call is unavailable
@@ -142,6 +165,7 @@ class GeminiContextSearchService @Inject constructor() : ContextSearchService {
     private fun parseGeminiResponse(
         rawText: String,
         messageMap: Map<String, Message>,
+        screenshotMap: Map<String, ExtensionScreenshot>,
         query: String,
         currentUserId: String
     ): ContextSearchResult {
@@ -163,6 +187,7 @@ class GeminiContextSearchService @Inject constructor() : ContextSearchService {
         }
 
         val intent = json.optString("intent", "").trim()
+        val answer = json.optString("answer", "").trim()
         val idsArray = json.optJSONArray("relevantMessageIds")
         val resultItems = mutableListOf<ContextSearchResultItem>()
 
@@ -172,16 +197,29 @@ class GeminiContextSearchService @Inject constructor() : ContextSearchService {
                 // Strict validation: ID must exist in actual local message map
                 val message = messageMap[rawId]
                 if (message != null && resultItems.none { it.messageId == message.id }) {
+                    val isUser = message.senderId == currentUserId || message.senderName.equals("You", ignoreCase = true) || message.senderName.equals("Me", ignoreCase = true)
                     resultItems.add(
                         ContextSearchResultItem(
                             messageId = message.id,
                             senderId = message.senderId,
-                            senderName = if (message.senderId == currentUserId) "You" else message.senderName.trim().ifEmpty { "Other" },
+                            senderName = if (isUser) "You" else message.senderName.trim().ifEmpty { "Other" },
                             messageText = message.message?.trim()?.ifEmpty { "[Sent an image]" } ?: "[Sent an image]",
                             timestamp = message.createdAt,
-                            isCurrentUser = message.senderId == currentUserId
+                            isCurrentUser = isUser
                         )
                     )
+                }
+            }
+        }
+
+        // Strict screenshot ID validation
+        val imageIdsArray = json.optJSONArray("relevantImageIds")
+        val validatedImageIds = mutableListOf<String>()
+        if (imageIdsArray != null) {
+            for (i in 0 until imageIdsArray.length()) {
+                val rawImageId = imageIdsArray.optString(i, "").trim()
+                if (screenshotMap.containsKey(rawImageId) && !validatedImageIds.contains(rawImageId)) {
+                    validatedImageIds.add(rawImageId)
                 }
             }
         }
@@ -189,15 +227,13 @@ class GeminiContextSearchService @Inject constructor() : ContextSearchService {
         return ContextSearchResult(
             query = query,
             intent = intent,
+            answer = answer,
             items = resultItems.take(MAX_RESULTS),
+            matchingImageIds = validatedImageIds,
             isFallbackMatch = false
         )
     }
 
-    /**
-     * Safe local fallback search when Gemini is unavailable.
-     * Matches significant keywords from the query without claiming semantic understanding.
-     */
     private fun performLocalFallbackSearch(
         query: String,
         candidateMessages: List<Message>,
@@ -211,21 +247,20 @@ class GeminiContextSearchService @Inject constructor() : ContextSearchService {
         val matches = candidateMessages.filter { msg ->
             val text = msg.message?.lowercase() ?: ""
             if (text.isBlank()) return@filter false
-
-            // Exact phrase match or token matches
             text.contains(query.lowercase()) || (tokens.isNotEmpty() && tokens.any { text.contains(it) })
         }
 
         val items = matches
             .takeLast(MAX_RESULTS)
             .map { msg ->
+                val isUser = msg.senderId == currentUserId || msg.senderName.equals("You", ignoreCase = true) || msg.senderName.equals("Me", ignoreCase = true)
                 ContextSearchResultItem(
                     messageId = msg.id,
                     senderId = msg.senderId,
-                    senderName = if (msg.senderId == currentUserId) "You" else msg.senderName.trim().ifEmpty { "Other" },
+                    senderName = if (isUser) "You" else msg.senderName.trim().ifEmpty { "Other" },
                     messageText = msg.message?.trim() ?: "[Sent an image]",
                     timestamp = msg.createdAt,
-                    isCurrentUser = msg.senderId == currentUserId
+                    isCurrentUser = isUser
                 )
             }
 

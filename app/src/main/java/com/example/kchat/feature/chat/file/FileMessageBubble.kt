@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -57,22 +58,24 @@ fun FileMessageBubble(
     val extLabel = FileUtils.getFileExtensionLabel(fileName, fileMimeType)
     val formattedSize = FileUtils.formatFileSize(fileSizeBytes)
 
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF162542)
+
     val iconBgColor = if (isCurrentUser) {
         Color.White.copy(alpha = 0.2f)
     } else {
-        colorResource(id = R.color.light_blue).copy(alpha = 0.2f)
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
     }
 
     val iconTint = if (isCurrentUser) {
         Color.White
     } else {
-        colorResource(id = R.color.light_blue)
+        MaterialTheme.colorScheme.primary
     }
 
     val cardBg = if (isCurrentUser) {
         Color.Black.copy(alpha = 0.15f)
     } else {
-        Color.Black.copy(alpha = 0.25f)
+        if (isDark) Color.Black.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
     }
 
     Box(
@@ -95,7 +98,7 @@ fun FileMessageBubble(
                     }
                 }
             }
-            .padding(10.dp)
+            .padding(8.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -109,8 +112,8 @@ fun FileMessageBubble(
                 // File Icon Container
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .background(iconBgColor),
                     contentAlignment = Alignment.Center
                 ) {
@@ -118,11 +121,11 @@ fun FileMessageBubble(
                         imageVector = Icons.Default.Description,
                         contentDescription = "Document",
                         tint = iconTint,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
 
                 // Filename & Meta
                 Column(
@@ -130,34 +133,34 @@ fun FileMessageBubble(
                 ) {
                     Text(
                         text = fileName.ifBlank { "Document" },
-                        color = Color.White,
+                        color = if (isCurrentUser) Color.White else (if (isDark) Color.White else MaterialTheme.colorScheme.onSurface),
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "$extLabel • $formattedSize",
-                        color = if (isCurrentUser) Color.White.copy(alpha = 0.75f) else Color.LightGray,
-                        fontSize = 11.sp
+                        color = if (isCurrentUser) Color.White.copy(alpha = 0.75f) else (if (isDark) Color.LightGray else MaterialTheme.colorScheme.onSurfaceVariant),
+                        fontSize = 10.5.sp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(6.dp))
 
             // Action: Loading spinner or Download/Open icon
             if (isLoading) {
                 CircularProgressIndicator(
                     color = iconTint,
                     strokeWidth = 2.dp,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             } else {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(28.dp)
                         .clip(CircleShape)
                         .background(iconBgColor),
                     contentAlignment = Alignment.Center
@@ -166,7 +169,7 @@ fun FileMessageBubble(
                         imageVector = Icons.Default.Download,
                         contentDescription = "Open file",
                         tint = iconTint,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }

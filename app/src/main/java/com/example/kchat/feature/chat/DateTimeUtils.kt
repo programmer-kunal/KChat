@@ -153,4 +153,21 @@ object DateTimeUtils {
             false
         }
     }
+
+    /**
+     * Formats the number of online members for a group chat.
+     * Examples:
+     * - 0 -> "0 members online"
+     * - 1 -> "1 member online"
+     * - 5 -> "5 members online"
+     */
+    fun formatGroupOnlineCount(count: Int): String {
+        return if (count == 1) {
+            "1 member online"
+        } else {
+            "$count members online"
+        }
+    }
 }
+
+

@@ -20,6 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -50,6 +51,8 @@ fun FilePreviewDialog(
     val extLabel = FileUtils.getFileExtensionLabel(fileName, mimeType)
     val formattedSize = FileUtils.formatFileSize(fileSizeBytes)
 
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF162542)
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -59,7 +62,7 @@ fun FilePreviewDialog(
                 .fillMaxWidth(0.92f)
                 .padding(vertical = 24.dp),
             shape = RoundedCornerShape(24.dp),
-            color = colorResource(id = R.color.dark_blue)
+            color = MaterialTheme.colorScheme.surface
         ) {
             Column(
                 modifier = Modifier
@@ -78,20 +81,20 @@ fun FilePreviewDialog(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(colorResource(id = R.color.light_blue).copy(alpha = 0.2f)),
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Description,
                                 contentDescription = null,
-                                tint = colorResource(id = R.color.light_blue),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
                             text = "Document Preview",
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -101,7 +104,7 @@ fun FilePreviewDialog(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = Color.White.copy(alpha = 0.7f)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -113,7 +116,7 @@ fun FilePreviewDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF1E2D4A))
+                        .background(if (isDark) Color(0xFF1E2D4A) else MaterialTheme.colorScheme.surfaceVariant)
                         .padding(20.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -124,13 +127,13 @@ fun FilePreviewDialog(
                             modifier = Modifier
                                 .size(64.dp)
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(colorResource(id = R.color.light_blue).copy(alpha = 0.25f)),
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Description,
                                 contentDescription = null,
-                                tint = colorResource(id = R.color.light_blue),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(36.dp)
                             )
                         }
@@ -139,7 +142,7 @@ fun FilePreviewDialog(
 
                         Text(
                             text = fileName,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 16.sp,
                             maxLines = 2,
@@ -152,12 +155,12 @@ fun FilePreviewDialog(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color.Black.copy(alpha = 0.35f))
+                                .background(if (isDark) Color.Black.copy(alpha = 0.35f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
                                 .padding(horizontal = 12.dp, vertical = 4.dp)
                         ) {
                             Text(
                                 text = "$extLabel • $formattedSize",
-                                color = colorResource(id = R.color.light_blue),
+                                color = MaterialTheme.colorScheme.primary,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -179,8 +182,9 @@ fun FilePreviewDialog(
                             .height(48.dp),
                         shape = RoundedCornerShape(24.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color.White
-                        )
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
                     ) {
                         Text(
                             text = "Cancel",
@@ -198,8 +202,8 @@ fun FilePreviewDialog(
                             .height(48.dp),
                         shape = RoundedCornerShape(24.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = colorResource(id = R.color.light_blue),
-                            contentColor = Color.White
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         )
                     ) {
                         Text(

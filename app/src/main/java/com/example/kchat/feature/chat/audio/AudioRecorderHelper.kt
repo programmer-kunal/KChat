@@ -34,6 +34,9 @@ class AudioRecorderHelper(
     private val _recordingDurationMs = MutableStateFlow(0L)
     val recordingDurationMs: StateFlow<Long> = _recordingDurationMs.asStateFlow()
 
+    private val _currentAmplitude = MutableStateFlow(0f)
+    val currentAmplitude: StateFlow<Float> = _currentAmplitude.asStateFlow()
+
     var onMaxDurationReached: (() -> Unit)? = null
 
     companion object {
@@ -83,6 +86,8 @@ class AudioRecorderHelper(
                 while (isActive && _isRecording.value) {
                     val elapsed = System.currentTimeMillis() - startTimeMs
                     _recordingDurationMs.value = elapsed
+                    val maxAmp = try { mediaRecorder?.maxAmplitude ?: 0 } catch (e: Exception) { 0 }
+                    _currentAmplitude.value = (maxAmp / 32767f).coerceIn(0f, 1f)
                     if (elapsed >= MAX_DURATION_MS) {
                         onMaxDurationReached?.invoke()
                         break
@@ -123,6 +128,7 @@ class AudioRecorderHelper(
 
         _isRecording.value = false
         _recordingDurationMs.value = 0L
+        _currentAmplitude.value = 0f
 
         return if (success && file != null && file.exists() && file.length() > 0L && durationMs >= MIN_DURATION_MS) {
             Pair(file, durationMs)
@@ -166,6 +172,7 @@ class AudioRecorderHelper(
         cleanupRecorder()
         _isRecording.value = false
         _recordingDurationMs.value = 0L
+        _currentAmplitude.value = 0f
         try {
             currentFile?.delete()
         } catch (e: Exception) {

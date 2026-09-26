@@ -1,5 +1,6 @@
 package com.example.kchat.feature.smartreply
 
+import com.example.kchat.feature.extension.model.ExtensionScreenshot
 import com.example.kchat.model.Message
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -10,16 +11,19 @@ import javax.inject.Singleton
 /**
  * Implementation of [SmartReplyService] powered by Firebase AI Logic
  * and the Gemini Developer API.
+ * Supports both internal messages and external extension context (text + screenshots).
  */
 @Singleton
 class GeminiSmartReplyService @Inject constructor() : SmartReplyService {
 
     override suspend fun generateSmartReplies(
         selectedMessages: List<Message>,
-        currentUserId: String
+        currentUserId: String,
+        screenshots: List<ExtensionScreenshot>
     ): Result<SmartReplyResult> = withContext(Dispatchers.IO) {
         runCatching {
-            if (selectedMessages.isEmpty()) {
+            val validScreenshots = screenshots.filter { it.bitmap != null }
+            if (selectedMessages.isEmpty() && validScreenshots.isEmpty()) {
                 return@runCatching SmartReplyResult(
                     tone = "Likely neutral",
                     sentiment = "Neutral",
@@ -33,11 +37,11 @@ class GeminiSmartReplyService @Inject constructor() : SmartReplyService {
 
             val formattedDialogue = buildString {
                 for (msg in chronologicalMessages) {
-                    val senderLabel = if (msg.senderId == currentUserId) {
+                    val senderLabel = if (msg.senderId == currentUserId || msg.senderName.equals("You", ignoreCase = true) || msg.senderName.equals("Me", ignoreCase = true)) {
                         "Me"
                     } else {
                         val name = msg.senderName.trim()
-                        if (name.isNotEmpty()) "Other ($name)" else "Other"
+                        if (name.isNotEmpty()) name else "Other"
                     }
 
                     val textContent = when {
@@ -50,13 +54,16 @@ class GeminiSmartReplyService @Inject constructor() : SmartReplyService {
             }
 
             val prompt = buildString {
-                appendLine("You are KChat Smart Reply, an AI assistant providing emotion and sentiment intelligence to support direct 1-to-1 messaging.")
-                appendLine("Analyze the conversational context below and output:")
+                appendLine("You are KChat Smart Reply, an AI assistant providing emotion, sentiment intelligence, and contextual reply suggestions for messaging conversations.")
+                if (validScreenshots.isNotEmpty()) {
+                    appendLine("NOTE: The user has attached ${validScreenshots.size} screenshot(s) of conversation(s) (${validScreenshots.joinToString { it.id }}). Please read the visible text in the screenshot(s) in addition to any dialogue text provided below.")
+                }
+                appendLine("Analyze the conversational context and output:")
                 appendLine("1. 'tone': Likely tone (describe probabilistically, e.g. 'Likely friendly', 'Likely frustrated', 'Likely inquiring', 'Likely neutral'. Do not claim certainty).")
                 appendLine("2. 'sentiment': Sentiment (Positive, Neutral, or Negative).")
-                appendLine("3. 'intent': Inferred intent of the other participant (e.g. 'Seeking clarification', 'Confirming plan', 'Sharing update').")
+                appendLine("3. 'intent': Inferred intent of the speaker(s) (e.g. 'Seeking clarification', 'Confirming plan', 'Sharing update').")
                 appendLine("4. 'urgency': Inferred urgency level (Low, Medium, or High).")
-                appendLine("5. 'suggestions': An array of 2 to 4 concise, polite, natural reply options for 'Me' to send.")
+                appendLine("5. 'suggestions': An array of 2 to 4 concise, polite, natural reply options for the user to send in response.")
                 appendLine()
                 appendLine("Return ONLY valid JSON matching this exact structure without markdown fences:")
                 appendLine("{")
@@ -70,14 +77,26 @@ class GeminiSmartReplyService @Inject constructor() : SmartReplyService {
                 appendLine("  ]")
                 appendLine("}")
                 appendLine()
-                appendLine("Conversation context:")
-                appendLine(formattedDialogue)
+                if (formattedDialogue.isNotBlank()) {
+                    appendLine("Conversation context:")
+                    appendLine(formattedDialogue)
+                }
             }
 
             val model = SmartReplyConfig.createGenerativeModel()
-            val response = model.generateContent(prompt)
-            val responseText = response.text ?: throw IllegalStateException("Empty response from AI model")
+            val response = if (validScreenshots.isNotEmpty()) {
+                val parts = mutableListOf<com.google.firebase.ai.type.Part>()
+                for (sc in validScreenshots) {
+                    parts.add(com.google.firebase.ai.type.ImagePart(sc.bitmap!!))
+                }
+                parts.add(com.google.firebase.ai.type.TextPart(prompt))
+                val multiModalContent = com.google.firebase.ai.type.Content(role = "user", parts = parts)
+                model.generateContent(multiModalContent)
+            } else {
+                model.generateContent(prompt)
+            }
 
+            val responseText = response.text ?: throw IllegalStateException("Empty response from AI model")
             parseModelResponse(responseText)
         }
     }
