@@ -2,6 +2,7 @@ package com.example.kchat.feature.splashscreen
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,10 +48,12 @@ fun SplashScreen(navController: NavController) {
         }
     }
 
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF162542)
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(colorResource(id = R.color.dark_blue))
+            .background(MaterialTheme.colorScheme.background)
     ) {
 
         Image(
@@ -71,12 +74,12 @@ fun SplashScreen(navController: NavController) {
                 text = "From",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.Gray
+                color = if (isDark) Color.Gray else MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Image(
-                    painter = painterResource(id = R.drawable.logo2),
+                    painter = painterResource(id = R.drawable.logo),
                     contentDescription = null,
                     modifier = Modifier.size(30.dp)
                 )
@@ -85,7 +88,7 @@ fun SplashScreen(navController: NavController) {
                     text = "KAVTORS",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = colorResource(id = R.color.light_blue),
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = 5.dp)
                 )
             }
