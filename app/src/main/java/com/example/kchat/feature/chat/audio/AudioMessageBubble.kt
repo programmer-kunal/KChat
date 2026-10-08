@@ -30,6 +30,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
+import com.example.kchat.VaultMediaManager
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,7 +65,12 @@ fun AudioMessageBubble(
     val currentPositionMs by audioPlayerHelper.currentPositionMs.collectAsState()
     val activeDurationMs by audioPlayerHelper.durationMs.collectAsState()
 
-    val isThisActive = currentPlayingUrl == audioUrl
+    val coroutineScope = rememberCoroutineScope()
+    var resolvedAudioUrl by remember(audioUrl) {
+        mutableStateOf<String?>(if (!VaultMediaManager.isVaultUrl(audioUrl)) audioUrl else VaultMediaManager.getCachedUrlOnly(audioUrl))
+    }
+
+    val isThisActive = currentPlayingUrl == audioUrl || (resolvedAudioUrl != null && currentPlayingUrl == resolvedAudioUrl)
     val isThisPlaying = isThisActive && isPlaying
 
     val effectiveTotalDuration = if (isThisActive && activeDurationMs > 0L) {
@@ -84,7 +94,7 @@ fun AudioMessageBubble(
     }
 
     // Color theme matching KChat's design system
-    val isDark = MaterialTheme.colorScheme.background == Color(0xFF162542)
+    val isDark = MaterialTheme.colorScheme.background == com.example.kchat.ui.theme.KChatDarkBackground
     val primaryColor = MaterialTheme.colorScheme.primary
 
     val playButtonBg = if (isCurrentUser) Color.White else primaryColor
@@ -94,7 +104,7 @@ fun AudioMessageBubble(
     val inactiveTrackColor = if (isCurrentUser) Color.White.copy(alpha = 0.35f) else (if (isDark) Color.Gray.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
     val thumbColor = if (isCurrentUser) Color.White else primaryColor
 
-    val timerTextColor = if (isCurrentUser) Color.White.copy(alpha = 0.9f) else (if (isDark) Color.LightGray else MaterialTheme.colorScheme.onSurfaceVariant)
+    val timerTextColor = if (isCurrentUser) Color.White.copy(alpha = 0.9f) else (MaterialTheme.colorScheme.onSurfaceVariant)
     val micBadgeTint = if (isCurrentUser) Color.White.copy(alpha = 0.75f) else primaryColor
 
     Row(
@@ -116,7 +126,13 @@ fun AudioMessageBubble(
                     if (isInSelectionMode) {
                         onBubbleClick()
                     } else {
-                        audioPlayerHelper.togglePlayPause(audioUrl, durationMs)
+                        coroutineScope.launch {
+                            val urlToPlay = resolvedAudioUrl ?: VaultMediaManager.resolveMediaUrl(audioUrl)
+                            resolvedAudioUrl = urlToPlay
+                            if (urlToPlay != null) {
+                                audioPlayerHelper.togglePlayPause(urlToPlay, durationMs, cacheKey = audioUrl)
+                            }
+                        }
                     }
                 },
             contentAlignment = Alignment.Center
@@ -143,8 +159,14 @@ fun AudioMessageBubble(
                         if (isThisActive) {
                             audioPlayerHelper.seekTo(seekTarget)
                         } else {
-                            audioPlayerHelper.play(audioUrl, durationMs)
-                            audioPlayerHelper.seekTo(seekTarget)
+                            coroutineScope.launch {
+                                val urlToPlay = resolvedAudioUrl ?: VaultMediaManager.resolveMediaUrl(audioUrl)
+                                resolvedAudioUrl = urlToPlay
+                                if (urlToPlay != null) {
+                                    audioPlayerHelper.play(urlToPlay, durationMs, cacheKey = audioUrl)
+                                    audioPlayerHelper.seekTo(seekTarget)
+                                }
+                            }
                         }
                     }
                 },

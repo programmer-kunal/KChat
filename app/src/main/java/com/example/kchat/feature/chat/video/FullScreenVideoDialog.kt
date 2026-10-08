@@ -32,7 +32,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
+import com.example.kchat.VaultMediaManager
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +57,11 @@ fun FullScreenVideoDialog(
     videoPlayerHelper: VideoPlayerHelper,
     onDismiss: () -> Unit
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    var resolvedVideoUrl by remember(videoUrl) {
+        mutableStateOf<String?>(if (!VaultMediaManager.isVaultUrl(videoUrl)) videoUrl else VaultMediaManager.getCachedUrlOnly(videoUrl))
+    }
+
     val isPlaying by videoPlayerHelper.isPlaying.collectAsState()
     val currentPositionMs by videoPlayerHelper.currentPositionMs.collectAsState()
     val durationMs by videoPlayerHelper.durationMs.collectAsState()
@@ -80,7 +90,11 @@ fun FullScreenVideoDialog(
                         surfaceTextureListener = object : TextureView.SurfaceTextureListener {
                             override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
                                 videoPlayerHelper.attachSurface(Surface(st))
-                                videoPlayerHelper.play(videoUrl, durationMs)
+                                coroutineScope.launch {
+                                    val urlToPlay = resolvedVideoUrl ?: VaultMediaManager.resolveMediaUrl(videoUrl) ?: videoUrl
+                                    resolvedVideoUrl = urlToPlay
+                                    videoPlayerHelper.play(urlToPlay, durationMs)
+                                }
                             }
 
                             override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {}
@@ -100,7 +114,11 @@ fun FullScreenVideoDialog(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) {
-                        videoPlayerHelper.togglePlayPause(videoUrl, durationMs)
+                        coroutineScope.launch {
+                            val urlToPlay = resolvedVideoUrl ?: VaultMediaManager.resolveMediaUrl(videoUrl) ?: videoUrl
+                            resolvedVideoUrl = urlToPlay
+                            videoPlayerHelper.togglePlayPause(urlToPlay, durationMs)
+                        }
                     }
             )
 

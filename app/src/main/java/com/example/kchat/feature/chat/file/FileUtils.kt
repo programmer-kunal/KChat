@@ -132,9 +132,27 @@ object FileUtils {
             val localFile = File(downloadDir, safeName)
 
             if (!localFile.exists() || localFile.length() <= 0L) {
-                URL(fileUrl).openStream().use { input ->
-                    localFile.outputStream().use { output ->
-                        input.copyTo(output)
+                val resolvedUrl = if (com.example.kchat.VaultMediaManager.isVaultUrl(fileUrl)) {
+                    com.example.kchat.VaultMediaManager.resolveMediaUrl(fileUrl) ?: throw IllegalStateException("Failed to resolve secure vault media URL")
+                } else {
+                    fileUrl
+                }
+                val tempFile = File(downloadDir, "${safeName}_${System.currentTimeMillis()}.tmp")
+                try {
+                    URL(resolvedUrl).openStream().use { input ->
+                        tempFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    if (tempFile.exists() && tempFile.length() > 0) {
+                        if (localFile.exists()) localFile.delete()
+                        tempFile.renameTo(localFile)
+                    } else {
+                        throw IllegalStateException("Downloaded file is empty")
+                    }
+                } finally {
+                    if (tempFile.exists()) {
+                        tempFile.delete()
                     }
                 }
             }

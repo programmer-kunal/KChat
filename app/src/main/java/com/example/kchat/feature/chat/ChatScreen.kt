@@ -90,6 +90,8 @@ import com.example.kchat.feature.chat.audio.AudioPlayerHelper
 import com.example.kchat.feature.chat.audio.AudioRecorderHelper
 import com.example.kchat.feature.chat.audio.AudioUtils
 import com.example.kchat.feature.chat.file.FileMessageBubble
+import com.example.kchat.VaultMediaManager
+import androidx.compose.runtime.produceState
 import com.example.kchat.feature.chat.attachment.AttachmentItem
 import com.example.kchat.feature.chat.attachment.AttachmentType
 import com.example.kchat.feature.chat.attachment.AttachmentPreviewDialog
@@ -206,7 +208,7 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
             notificationManager.cancel(notificationId)
         }
         val coroutineScope = rememberCoroutineScope()
-        val audioPlayerHelper = remember { AudioPlayerHelper(coroutineScope) }
+        val audioPlayerHelper = remember { AudioPlayerHelper(coroutineScope, context) }
         val audioRecorderHelper = remember { AudioRecorderHelper(context, coroutineScope) }
         val videoPlayerHelper = remember { VideoPlayerHelper(coroutineScope) }
 
@@ -824,15 +826,24 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
                 onDismiss = { showAiMenuSheet = false },
                 onSmartReplyClicked = {
                     showAiMenuSheet = false
-                    if (selectedMessages.isNotEmpty()) {
-                        smartReplyViewModel.generateReplies(selectedMessages, currentUid)
-                        showSmartReplySheet = true
-                    } else {
+                    val meaningful = messages.value.filter { msg ->
+                        !msg.message.isNullOrBlank() ||
+                        !msg.imageUrl.isNullOrBlank() ||
+                        !msg.audioUrl.isNullOrBlank() ||
+                        !msg.videoUrl.isNullOrBlank() ||
+                        !msg.fileUrl.isNullOrBlank()
+                    }
+                    val hasOther = meaningful.any { it.senderId != currentUid }
+                    if (meaningful.isEmpty() || !hasOther) {
                         Toast.makeText(
                             context,
-                            "Select one or more messages to use Smart Reply.",
+                            "No recent conversation available to reply to.",
                             Toast.LENGTH_SHORT
                         ).show()
+                    } else {
+                        selectedMessages = emptyList()
+                        smartReplyViewModel.generateRepliesFromRecentContext(messages.value, currentUid)
+                        showSmartReplySheet = true
                     }
                 },
                 onThreadSummaryClicked = {
@@ -926,6 +937,8 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
                 onRetry = {
                     if (selectedMessages.isNotEmpty()) {
                         smartReplyViewModel.generateReplies(selectedMessages, currentUid)
+                    } else {
+                        smartReplyViewModel.generateRepliesFromRecentContext(messages.value, currentUid)
                     }
                 }
             )
@@ -1302,9 +1315,21 @@ fun ChatMessages(
     onFullScreenVideoClick: (String) -> Unit = {}
 ){
     val context = LocalContext.current
-    val listState = rememberLazyListState()
+    val initialIndex = if (isMessagesLoaded && messages.isNotEmpty()) messages.size - 1 else 0
+    val listState = remember(channelID, isMessagesLoaded) {
+        androidx.compose.foundation.lazy.LazyListState(firstVisibleItemIndex = initialIndex)
+    }
+
+    var hasInitialized by remember(channelID) { androidx.compose.runtime.mutableStateOf(false) }
+
+    LaunchedEffect(isMessagesLoaded) {
+        if (isMessagesLoaded) {
+            hasInitialized = true
+        }
+    }
+
     LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty() && targetScrollMessageId == null) {
+        if (hasInitialized && messages.isNotEmpty() && targetScrollMessageId == null) {
             listState.animateScrollToItem(messages.size - 1)
         }
     }
@@ -1380,8 +1405,8 @@ fun ChatMessages(
         }
     }
 
-    val isChatDark = MaterialTheme.colorScheme.background == Color(0xFF162542)
-    val toolbarContentColor = if (isChatDark) Color.White else MaterialTheme.colorScheme.onSurface
+    val isChatDark = MaterialTheme.colorScheme.background == com.example.kchat.ui.theme.KChatDarkBackground
+    val toolbarContentColor = MaterialTheme.colorScheme.onSurface
 
     Column(modifier = Modifier.fillMaxSize()){
         if (selectedMessages.isNotEmpty()) {
@@ -1444,7 +1469,7 @@ fun ChatMessages(
                             Icon(
                                 painter = painterResource(id = R.drawable.ic_kchat_smart_reply),
                                 contentDescription = "Smart Reply",
-                                tint = if (hasTextMessage) (if (isChatDark) Color.White else MaterialTheme.colorScheme.primary) else toolbarContentColor.copy(alpha = 0.4f),
+                                tint = if (hasTextMessage) (MaterialTheme.colorScheme.primary) else toolbarContentColor.copy(alpha = 0.4f),
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -1480,7 +1505,7 @@ fun ChatMessages(
                             Icon(
                                 imageVector = Icons.Default.Delete,
                                 contentDescription = "Delete",
-                                tint = if (isChatDark) Color.White else MaterialTheme.colorScheme.error,
+                                tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -1569,7 +1594,9 @@ fun ChatMessages(
                 trailingContent = null
             )
         }
-        if (messages.isEmpty() && isSelfChat) {
+        if (!isMessagesLoaded) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth())
+        } else if (messages.isEmpty() && isSelfChat) {
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -1625,7 +1652,7 @@ fun ChatMessages(
                     },
                 reverseLayout = false
             ) {
-                itemsIndexed(messages, key = { _, message -> message.id }) { index, message ->
+                itemsIndexed(messages, key = { index, message -> message.id.ifEmpty { "msg_$index" } }) { index, message ->
                     val shouldShowDateHeader = if (message.createdAt <= 0L) {
                         false
                     } else if (index == 0) {
@@ -1633,7 +1660,13 @@ fun ChatMessages(
                     } else {
                         val prevCreatedAt = messages[index - 1].createdAt
                         if (prevCreatedAt <= 0L) {
-                            val prevValid = messages.take(index).lastOrNull { it.createdAt > 0L }
+                            var prevValid: Message? = null
+                            for (i in (index - 1) downTo 0) {
+                                if (messages[i].createdAt > 0L) {
+                                    prevValid = messages[i]
+                                    break
+                                }
+                            }
                             if (prevValid == null) true else !DateTimeUtils.isSameCalendarDay(prevValid.createdAt, message.createdAt)
                         } else {
                             !DateTimeUtils.isSameCalendarDay(prevCreatedAt, message.createdAt)
@@ -1757,10 +1790,10 @@ fun ChatMessages(
                 onSend = onSendAudioRecording
             )
         } else {
-            val isChatDark = MaterialTheme.colorScheme.background == Color(0xFF162542)
+            val isChatDark = MaterialTheme.colorScheme.background == com.example.kchat.ui.theme.KChatDarkBackground
             Row(modifier = Modifier
                 .fillMaxWidth()
-                .background(if (isChatDark) Color.DarkGray else MaterialTheme.colorScheme.surface)
+                .background(MaterialTheme.colorScheme.surface)
                 .then(
                     if (!isChatDark) Modifier.border(width = 1.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                     else Modifier
@@ -1793,7 +1826,7 @@ fun ChatMessages(
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(max = 130.dp),
-                    placeholder = { Text(text = "Type your message...", color = if (isChatDark) Color.LightGray else MaterialTheme.colorScheme.onSurfaceVariant)},
+                    placeholder = { Text(text = "Type your message...", color = MaterialTheme.colorScheme.onSurfaceVariant)},
                     maxLines = 5,
                     minLines = 1,
                     keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Default),
@@ -1802,12 +1835,12 @@ fun ChatMessages(
                             hideKeyboardController?.hide()
                         }),
                     colors = TextFieldDefaults.colors().copy(
-                        focusedContainerColor = if (isChatDark) Color.DarkGray else MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = if (isChatDark) Color.DarkGray else MaterialTheme.colorScheme.surface,
-                        focusedTextColor = if (isChatDark) Color.White else MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = if (isChatDark) Color.White else MaterialTheme.colorScheme.onSurface,
-                        focusedPlaceholderColor = if (isChatDark) Color.LightGray else MaterialTheme.colorScheme.onSurfaceVariant,
-                        unfocusedPlaceholderColor = if (isChatDark) Color.LightGray else MaterialTheme.colorScheme.onSurfaceVariant
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
                 if (composerText.isNotBlank()) {
@@ -1876,7 +1909,7 @@ fun ChatMessages(
 
 @Composable
 fun DateSeparator(dateText: String) {
-    val isChatDark = MaterialTheme.colorScheme.background == Color(0xFF162542)
+    val isChatDark = MaterialTheme.colorScheme.background == com.example.kchat.ui.theme.KChatDarkBackground
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1905,7 +1938,7 @@ fun ReplyPreviewBar(
     messageSnippet: String,
     onDismiss: () -> Unit
 ) {
-    val isReplyDark = MaterialTheme.colorScheme.background == Color(0xFF162542)
+    val isReplyDark = MaterialTheme.colorScheme.background == com.example.kchat.ui.theme.KChatDarkBackground
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1964,10 +1997,10 @@ fun QuotedReplyCard(
     isCurrentUserBubble: Boolean,
     onClick: () -> Unit
 ) {
-    val isQuoteDark = MaterialTheme.colorScheme.background == Color(0xFF162542)
+    val isQuoteDark = MaterialTheme.colorScheme.background == com.example.kchat.ui.theme.KChatDarkBackground
     val accentColor = if (isCurrentUserBubble) Color.White else MaterialTheme.colorScheme.primary
     val cardBgColor = if (isCurrentUserBubble) Color.Black.copy(alpha = 0.15f) else (if (isQuoteDark) Color.Black.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
-    val snippetColor = if (isCurrentUserBubble) Color.White.copy(alpha = 0.85f) else (if (isQuoteDark) Color.LightGray else MaterialTheme.colorScheme.onSurfaceVariant)
+    val snippetColor = if (isCurrentUserBubble) Color.White.copy(alpha = 0.85f) else (MaterialTheme.colorScheme.onSurfaceVariant)
 
     Row(
         modifier = Modifier
@@ -2040,14 +2073,14 @@ fun ChatBubble(
         message.senderId == currentUid
     }
 
-    val isChatDark = MaterialTheme.colorScheme.background == Color(0xFF162542)
+    val isChatDark = MaterialTheme.colorScheme.background == com.example.kchat.ui.theme.KChatDarkBackground
 
     val bubbleColor = if (isSelected) {
         Color.Gray.copy(alpha = 0.5f)
     } else if (isCurrentUser) {
         colorResource(id = R.color.light_blue)
     } else {
-        if (isChatDark) Color.DarkGray else MaterialTheme.colorScheme.surface
+        MaterialTheme.colorScheme.surface
     }
 
     val highlightBorderColor by animateColorAsState(
@@ -2391,29 +2424,37 @@ fun ChatBubble(
 
                             if (message.imageUrl != null) {
                                 var imageAspectRatio by remember(message.imageUrl) { mutableFloatStateOf(4f / 3f) }
+                                val resolvedImageUrl by produceState<String?>(
+                                    initialValue = if (!VaultMediaManager.isVaultUrl(message.imageUrl)) message.imageUrl else VaultMediaManager.getCachedUrlOnly(message.imageUrl),
+                                    key1 = message.imageUrl
+                                ) {
+                                    value = VaultMediaManager.resolveMediaUrl(message.imageUrl)
+                                }
 
-                                AsyncImage(
-                                    model = message.imageUrl,
-                                    contentDescription = null,
-                                    onSuccess = { state ->
-                                        val intrinsicWidth = state.painter.intrinsicSize.width
-                                        val intrinsicHeight = state.painter.intrinsicSize.height
-                                        if (intrinsicWidth > 0f && intrinsicHeight > 0f) {
-                                            val ratio = intrinsicWidth / intrinsicHeight
-                                            imageAspectRatio = ratio.coerceIn(0.55f, 2.0f)
-                                        }
-                                    },
-                                    modifier = Modifier
-                                        .widthIn(min = 140.dp, max = 270.dp)
-                                        .aspectRatio(imageAspectRatio, matchHeightConstraintsFirst = false)
-                                        .clip(RoundedCornerShape(9.dp)),
-                                    contentScale = ContentScale.Crop
-                                )
+                                if (resolvedImageUrl != null) {
+                                    AsyncImage(
+                                        model = resolvedImageUrl,
+                                        contentDescription = null,
+                                        onSuccess = { state ->
+                                            val intrinsicWidth = state.painter.intrinsicSize.width
+                                            val intrinsicHeight = state.painter.intrinsicSize.height
+                                            if (intrinsicWidth > 0f && intrinsicHeight > 0f) {
+                                                val ratio = intrinsicWidth / intrinsicHeight
+                                                imageAspectRatio = ratio.coerceIn(0.55f, 2.0f)
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .widthIn(min = 140.dp, max = 270.dp)
+                                            .aspectRatio(imageAspectRatio, matchHeightConstraintsFirst = false)
+                                            .clip(RoundedCornerShape(9.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
                                 if (!message.message.isNullOrBlank()) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = message.message.trim(),
-                                        color = if (isCurrentUser) Color.White else (if (isChatDark) Color.White else MaterialTheme.colorScheme.onSurface),
+                                        color = if (isCurrentUser) Color.White else (MaterialTheme.colorScheme.onSurface),
                                         fontSize = 14.sp,
                                         lineHeight = 18.sp,
                                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
@@ -2451,7 +2492,7 @@ fun ChatBubble(
                             } else {
                                 Text(
                                     text = message.message?.trim() ?: "",
-                                    color = if (isCurrentUser) Color.White else (if (isChatDark) Color.White else MaterialTheme.colorScheme.onSurface),
+                                    color = if (isCurrentUser) Color.White else (MaterialTheme.colorScheme.onSurface),
                                     fontSize = 14.5.sp,
                                     lineHeight = 19.sp
                                 )
@@ -2582,6 +2623,12 @@ fun FullScreenImage(imageUrl: String?, onDismiss: () -> Unit) {
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val resolvedUrl by produceState<String?>(
+        initialValue = if (!VaultMediaManager.isVaultUrl(imageUrl)) imageUrl else VaultMediaManager.getCachedUrlOnly(imageUrl),
+        key1 = imageUrl
+    ) {
+        value = VaultMediaManager.resolveMediaUrl(imageUrl)
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -2622,7 +2669,7 @@ fun FullScreenImage(imageUrl: String?, onDismiss: () -> Unit) {
                     }
             ) {
                 AsyncImage(
-                    model = imageUrl,
+                    model = resolvedUrl ?: imageUrl,
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxSize()
@@ -2699,9 +2746,10 @@ fun deleteSavedImageFromGallery(context: android.content.Context, imageUrl: Stri
 suspend fun saveImageToGallery(context: android.content.Context, imageUrl: String) {
     withContext(Dispatchers.IO) {
         try {
+            val resolvedUrl = VaultMediaManager.resolveMediaUrl(imageUrl) ?: imageUrl
             val loader = context.imageLoader
             val request = ImageRequest.Builder(context)
-                .data(imageUrl)
+                .data(resolvedUrl)
                 .allowHardware(false)
                 .build()
             

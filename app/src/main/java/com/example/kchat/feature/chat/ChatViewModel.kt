@@ -35,7 +35,8 @@ import javax.inject.Inject
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     @param:ApplicationContext val context: Context,
-    private val requestQueue: RequestQueue
+    private val requestQueue: RequestQueue,
+    private val chatRepository: ChatRepository
 ): ViewModel(){
     private val _messages= MutableStateFlow<List<Message>>(emptyList())
     val message = _messages.asStateFlow()
@@ -176,6 +177,8 @@ class ChatViewModel @Inject constructor(
             imageUrl = image,
             readBy = if (isSelfChat) mapOf(uid to true) else null,
             deliveredBy = if (isSelfChat) mapOf(uid to true) else null,
+            readAt = if (isSelfChat) mapOf(uid to System.currentTimeMillis()) else null,
+            deliveredAt = if (isSelfChat) mapOf(uid to System.currentTimeMillis()) else null,
             replyToMessageId = replyToMessageId,
             replyToSenderName = replyToSenderName,
             replyToMessageText = replyToMessageText,
@@ -200,11 +203,7 @@ class ChatViewModel @Inject constructor(
                     }
                     val isDirectChat = channelID.contains("_") && !channelID.startsWith("-") && channelID != HomeViewModel.WORLD_CHAT_ID
                     if (isDirectChat) {
-                        val parts = channelID.split("_")
-                        if (parts.size == 2) {
-                            db.reference.child("chat_hidden").child(parts[0]).child(channelID).removeValue()
-                            db.reference.child("chat_hidden").child(parts[1]).child(channelID).removeValue()
-                        }
+                        db.reference.child("chat_hidden").child(uid).child(channelID).removeValue()
                     }
                     // Trigger notification flow safely
                     val notifyText = if (!image.isNullOrEmpty()) {
@@ -236,55 +235,41 @@ class ChatViewModel @Inject constructor(
         val threadName = Thread.currentThread().name
         val isDirectChat = channelID.contains("_") && !channelID.startsWith("-") && channelID != HomeViewModel.WORLD_CHAT_ID
         if (isDirectChat) {
-            // Direct chat: Send to the receiver's FCM token
+            // Direct chat: Send to the receiver's UID (server resolves token securely)
             val parts = channelID.split("_")
             val receiverUid = parts.firstOrNull { it != senderUid }
             if (receiverUid != null && receiverUid != senderUid) {
-                db.reference.child("users").child(receiverUid).child("fcmToken")
-                    .addListenerForSingleValueEvent(object : ValueEventListener {
-                        override fun onDataChange(snapshot: DataSnapshot) {
-                            val token = snapshot.getValue(String::class.java)
-                            if (!token.isNullOrEmpty()) {
-                                sendNotificationRequest(
-                                    channelID = channelID,
-                                    messageText = messageText,
-                                    senderName = senderName,
-                                    senderImage = senderImage,
-                                    senderUid = senderUid,
-                                    receiverToken = token,
-                                    topic = null,
-                                    channelName = channelName,
-                                    messageId = messageId
-                                )
-                            }
-                        }
-                        override fun onCancelled(error: DatabaseError) {
-                            Log.e("ChatViewModel", "FCM Token fetch cancelled")
-                        }
-                    })
+                sendNotificationRequest(
+                    channelID = channelID,
+                    messageText = messageText,
+                    senderName = senderName,
+                    senderImage = senderImage,
+                    senderUid = senderUid,
+                    receiverUid = receiverUid,
+                    topic = null,
+                    channelName = channelName,
+                    messageId = messageId
+                )
             }
         } else if (channelID == HomeViewModel.WORLD_CHAT_ID) {
-            // World Chat: Distribute notifications directly to all registered users' tokens
+            // World Chat: Distribute notifications directly to all registered users' UIDs
             db.reference.child("users")
                 .addListenerForSingleValueEvent(object : ValueEventListener {
                     override fun onDataChange(snapshot: DataSnapshot) {
                         snapshot.children.forEach { userSnapshot ->
                             val userUid = userSnapshot.key
                             if (userUid != null && userUid != senderUid) {
-                                val token = userSnapshot.child("fcmToken").getValue(String::class.java)
-                                if (!token.isNullOrEmpty()) {
-                                    sendNotificationRequest(
-                                        channelID = channelID,
-                                        messageText = messageText,
-                                        senderName = senderName,
-                                        senderImage = senderImage,
-                                        senderUid = senderUid,
-                                        receiverToken = token,
-                                        topic = null,
-                                        channelName = channelName,
-                                        messageId = messageId
-                                    )
-                                }
+                                sendNotificationRequest(
+                                    channelID = channelID,
+                                    messageText = messageText,
+                                    senderName = senderName,
+                                    senderImage = senderImage,
+                                    senderUid = senderUid,
+                                    receiverUid = userUid,
+                                    topic = null,
+                                    channelName = channelName,
+                                    messageId = messageId
+                                )
                             }
                         }
                     }
@@ -300,26 +285,17 @@ class ChatViewModel @Inject constructor(
                         snapshot.children.forEach { memberSnapshot ->
                             val userUid = memberSnapshot.key
                             if (userUid != null && userUid != senderUid) {
-                                db.reference.child("users").child(userUid).child("fcmToken")
-                                    .addListenerForSingleValueEvent(object : ValueEventListener {
-                                        override fun onDataChange(tokenSnapshot: DataSnapshot) {
-                                            val token = tokenSnapshot.getValue(String::class.java)
-                                            if (!token.isNullOrEmpty()) {
-                                                sendNotificationRequest(
-                                                    channelID = channelID,
-                                                    messageText = messageText,
-                                                    senderName = senderName,
-                                                    senderImage = senderImage,
-                                                    senderUid = senderUid,
-                                                    receiverToken = token,
-                                                    topic = null,
-                                                    channelName = channelName,
-                                                    messageId = messageId
-                                                )
-                                            }
-                                        }
-                                        override fun onCancelled(error: DatabaseError) {}
-                                    })
+                                sendNotificationRequest(
+                                    channelID = channelID,
+                                    messageText = messageText,
+                                    senderName = senderName,
+                                    senderImage = senderImage,
+                                    senderUid = senderUid,
+                                    receiverUid = userUid,
+                                    topic = null,
+                                    channelName = channelName,
+                                    messageId = messageId
+                                )
                             }
                         }
                     }
@@ -336,14 +312,14 @@ class ChatViewModel @Inject constructor(
         senderName: String,
         senderImage: String?,
         senderUid: String,
-        receiverToken: String?,
-        topic: String?,
-        channelName: String?,
+        receiverUid: String? = null,
+        topic: String? = null,
+        channelName: String? = null,
         messageId: String? = null
     ) {
         val requestCount = debugRequestCounter.incrementAndGet()
         val threadName = Thread.currentThread().name
-        Log.d("FCM_DUPLICATE_DEBUG", "[sendNotificationRequest ENTRY] Timestamp: ${System.currentTimeMillis()}, ExecCount: $requestCount, channelID: $channelID, receiverTokenIsNull: ${receiverToken.isNullOrEmpty()}, topic: $topic, Thread: $threadName")
+        Log.d("FCM_DUPLICATE_DEBUG", "[sendNotificationRequest ENTRY] Timestamp: ${System.currentTimeMillis()}, ExecCount: $requestCount, channelID: $channelID, receiverUid: $receiverUid, topic: $topic, Thread: $threadName")
         val url = "https://kchat-notification-server.onrender.com/sendNotification"
         val jsonBody = JSONObject().apply {
             val isGroup = channelID.startsWith("-") || channelID == HomeViewModel.WORLD_CHAT_ID || !channelID.contains("_")
@@ -354,12 +330,17 @@ class ChatViewModel @Inject constructor(
                 put("title", senderName)
                 put("body", messageText)
             }
-            if (!receiverToken.isNullOrEmpty()) {
-                put("token", receiverToken)
+            if (!receiverUid.isNullOrEmpty()) {
+                put("receiverUid", receiverUid)
             }
             if (!topic.isNullOrEmpty()) {
                 put("topic", topic)
             }
+            if (!messageId.isNullOrEmpty()) {
+                put("messageId", messageId)
+            }
+            put("channelId", channelID)
+            put("senderId", senderUid)
             // Put extra data payload fields expected by FCM custom data or Android parsing
             val dataObj = JSONObject().apply {
                 put("channelId", channelID)
@@ -379,33 +360,52 @@ class ChatViewModel @Inject constructor(
 
         val requestBody = jsonBody.toString()
 
-        val stringRequest = object : StringRequest(
-            Method.POST, url,
-            Response.Listener { response ->
-                Log.d("FCM_DUPLICATE_DEBUG", "[sendNotificationRequest SUCCESS] Response: $response")
-                Log.d("ChatViewModel", "Notification response: $response")
-            },
-            Response.ErrorListener { error ->
-                Log.e("FCM_DUPLICATE_DEBUG", "[sendNotificationRequest ERROR] Error: ${error.message}")
-                Log.e("ChatViewModel", "Notification request error: ${error.message}")
-            }
-        ) {
-            override fun getBodyContentType(): String {
-                return "application/json; charset=utf-8"
-            }
-
-            override fun getBody(): ByteArray {
-                return requestBody.toByteArray(charset("utf-8"))
-            }
+        val currentUser = Firebase.auth.currentUser
+        if (currentUser == null) {
+            Log.e("ChatViewModel", "Cannot send notification: User not authenticated")
+            return
         }
 
-        stringRequest.retryPolicy = com.android.volley.DefaultRetryPolicy(
-            15000,
-            0,
-            com.android.volley.DefaultRetryPolicy.DEFAULT_BACKOFF_MULT
-        )
+        currentUser.getIdToken(false).addOnSuccessListener { tokenResult ->
+            val idToken = tokenResult.token
+            val stringRequest = object : StringRequest(
+                Method.POST, url,
+                Response.Listener { response ->
+                    Log.d("FCM_DUPLICATE_DEBUG", "[sendNotificationRequest SUCCESS] Response: $response")
+                    Log.d("ChatViewModel", "Notification response: $response")
+                },
+                Response.ErrorListener { error ->
+                    Log.e("FCM_DUPLICATE_DEBUG", "[sendNotificationRequest ERROR] Error: ${error.message}")
+                    Log.e("ChatViewModel", "Notification request error: ${error.message}")
+                }
+            ) {
+                override fun getBodyContentType(): String {
+                    return "application/json; charset=utf-8"
+                }
 
-        requestQueue.add(stringRequest)
+                override fun getBody(): ByteArray {
+                    return requestBody.toByteArray(charset("utf-8"))
+                }
+
+                override fun getHeaders(): MutableMap<String, String> {
+                    val headers = HashMap<String, String>()
+                    if (!idToken.isNullOrEmpty()) {
+                        headers["Authorization"] = "Bearer $idToken"
+                    }
+                    return headers
+                }
+            }
+
+            stringRequest.retryPolicy = com.android.volley.DefaultRetryPolicy(
+                15000,
+                0,
+                com.android.volley.DefaultRetryPolicy.DEFAULT_BACKOFF_MULT
+            )
+
+            requestQueue.add(stringRequest)
+        }.addOnFailureListener { error ->
+            Log.e("ChatViewModel", "Failed to retrieve Firebase ID token for notification: ${error.message}")
+        }
     }
 
     fun sendImageMessage(
@@ -418,7 +418,7 @@ class ChatViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             val storageUtils = SupabaseStorageUtils(context)
-            val downloadUri = storageUtils.uploadImage(uri)
+            val downloadUri = storageUtils.uploadImage(uri, channelID = channelID)
             downloadUri?.let {
                 sendMessage(
                     channelID = channelID,
@@ -444,7 +444,7 @@ class ChatViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             val storageUtils = SupabaseStorageUtils(context)
-            val downloadUri = storageUtils.uploadAudio(file)
+            val downloadUri = storageUtils.uploadAudio(file, channelID = channelID)
             downloadUri?.let { audioUrl ->
                 sendMessage(
                     channelID = channelID,
@@ -479,7 +479,7 @@ class ChatViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             val storageUtils = SupabaseStorageUtils(context)
-            val downloadUri = storageUtils.uploadVideo(file)
+            val downloadUri = storageUtils.uploadVideo(file, channelID = channelID)
             downloadUri?.let { videoUrl ->
                 sendMessage(
                     channelID = channelID,
@@ -516,7 +516,7 @@ class ChatViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             val storageUtils = SupabaseStorageUtils(context)
-            val downloadUri = storageUtils.uploadFile(file, fileName, mimeType)
+            val downloadUri = storageUtils.uploadFile(file, fileName, mimeType, channelID = channelID)
             downloadUri?.let { fileUrl ->
                 sendMessage(
                     channelID = channelID,
@@ -544,7 +544,16 @@ class ChatViewModel @Inject constructor(
 
     fun listenForMessages(channelID: String) {
         val currentUid = Firebase.auth.currentUser?.uid ?: return
-        _isMessagesLoaded.value = false
+
+        // Instantly restore cached messages from in-memory repository to avoid empty-screen flicker
+        val cached = chatRepository.getCachedMessages(channelID)
+        if (!cached.isNullOrEmpty()) {
+            rawMessages = cached
+            refreshFilteredMessages()
+            _isMessagesLoaded.value = true
+        } else {
+            _isMessagesLoaded.value = false
+        }
 
         deletedMessagesRef?.let { ref ->
             deletedMessagesListener?.let { listener ->
@@ -674,12 +683,15 @@ class ChatViewModel @Inject constructor(
                     resolved?.let {
                         list.add(it)
                         if (currentUid != null && !isWorldChat && it.senderId != currentUid && it.deliveredBy?.get(currentUid) != true) {
+                            val now = System.currentTimeMillis()
                             data.ref.child("deliveredBy").child(currentUid).setValue(true)
+                            data.ref.child("deliveredAt").child(currentUid).setValue(now)
                         }
                     }
                 }
 
                 rawMessages = list
+                chatRepository.putCachedMessages(channelID, list)
                 refreshFilteredMessages()
                 _isMessagesLoaded.value = true
             }
@@ -781,6 +793,7 @@ class ChatViewModel @Inject constructor(
         }
 
         rawMessages = combined
+        chatRepository.putCachedMessages(channelID, combined)
         refreshFilteredMessages()
         _isMessagesLoaded.value = true
     }
@@ -1000,15 +1013,22 @@ class ChatViewModel @Inject constructor(
 
                     // If message is not mine
                     if (message?.senderId != currentUid) {
+                        val now = System.currentTimeMillis()
                         if (message?.deliveredBy?.get(currentUid) != true) {
                             data.ref.child("deliveredBy")
                                 .child(currentUid)
                                 .setValue(true)
+                            data.ref.child("deliveredAt")
+                                .child(currentUid)
+                                .setValue(now)
                         }
                         if (message?.readBy?.get(currentUid) != true) {
                             data.ref.child("readBy")
                                 .child(currentUid)
                                 .setValue(true)
+                            data.ref.child("readAt")
+                                .child(currentUid)
+                                .setValue(now)
                         }
                     }
                 }

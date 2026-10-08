@@ -1,5 +1,6 @@
 package com.example.kchat.feature.chat.audio
 
+import android.content.Context
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.util.Log
@@ -12,14 +13,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import java.security.MessageDigest
 
 /**
  * Single-playback manager for audio messages in KChat.
  * Ensures that only ONE audio message can play at any given time across the screen.
  * Starting playback on another message immediately stops the previous one.
+ * Includes local disk caching for instant subsequent playback and offline capability.
  */
 class AudioPlayerHelper(
-    private val coroutineScope: CoroutineScope
+    private val coroutineScope: CoroutineScope,
+    private val context: Context? = null
 ) {
     private var mediaPlayer: MediaPlayer? = null
     private var progressJob: Job? = null
@@ -40,13 +48,60 @@ class AudioPlayerHelper(
         const val TAG = "AudioPlayerHelper"
     }
 
+    private fun hashKey(url: String): String {
+        val cleanUrl = url.substringBefore('?')
+        return try {
+            val md = MessageDigest.getInstance("MD5")
+            val bytes = md.digest(cleanUrl.toByteArray(Charsets.UTF_8))
+            bytes.joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            cleanUrl.hashCode().toString()
+        }
+    }
+
+    private fun getCachedAudioFile(url: String, cacheKey: String? = null): File? {
+        val ctx = context ?: return null
+        return try {
+            val key = cacheKey ?: url.substringBefore('?')
+            val cacheDir = File(ctx.cacheDir, "audio_cache").apply { if (!exists()) mkdirs() }
+            File(cacheDir, "${hashKey(key)}.m4a")
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun downloadAudioToCache(remoteUrl: String, targetFile: File) {
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                val tempFile = File(targetFile.parentFile, "${targetFile.name}.tmp")
+                val connection = (URL(remoteUrl).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 15000
+                    readTimeout = 15000
+                    instanceFollowRedirects = true
+                }
+                if (connection.responseCode in 200..299) {
+                    connection.inputStream.use { input ->
+                        FileOutputStream(tempFile).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    if (tempFile.exists() && tempFile.length() > 0) {
+                        tempFile.renameTo(targetFile)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Background caching of audio failed for $remoteUrl: ${e.message}")
+            }
+        }
+    }
+
     /**
      * Toggles playback for the specified audio [url].
      * If the specified audio is currently playing, it will pause.
      * If paused on the same audio, it will resume.
      * If a different audio or no audio is playing, it will stop the old audio and start the new one.
      */
-    fun togglePlayPause(url: String, defaultDurationMs: Long = 0L) {
+    fun togglePlayPause(url: String, defaultDurationMs: Long = 0L, cacheKey: String? = null) {
         if (_currentPlayingUrl.value == url) {
             if (_isPlaying.value) {
                 pause()
@@ -54,15 +109,15 @@ class AudioPlayerHelper(
                 resume()
             }
         } else {
-            play(url, defaultDurationMs)
+            play(url, defaultDurationMs, cacheKey)
         }
     }
 
     /**
-     * Starts playing audio from the specified HTTPS [url].
+     * Starts playing audio from the specified [url] or local cached file.
      * Any previously playing audio is immediately stopped and released.
      */
-    fun play(url: String, defaultDurationMs: Long = 0L) {
+    fun play(url: String, defaultDurationMs: Long = 0L, cacheKey: String? = null) {
         stop()
 
         _currentPlayingUrl.value = url
@@ -70,6 +125,16 @@ class AudioPlayerHelper(
         _currentPositionMs.value = 0L
 
         try {
+            val cachedFile = getCachedAudioFile(url, cacheKey)
+            val dataSourceToUse = if (cachedFile != null && cachedFile.exists() && cachedFile.length() > 0) {
+                cachedFile.absolutePath
+            } else {
+                if ((url.startsWith("http://") || url.startsWith("https://")) && cachedFile != null) {
+                    downloadAudioToCache(url, cachedFile)
+                }
+                url
+            }
+
             val player = MediaPlayer().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
@@ -77,7 +142,7 @@ class AudioPlayerHelper(
                         .setUsage(AudioAttributes.USAGE_MEDIA)
                         .build()
                 )
-                setDataSource(url)
+                setDataSource(dataSourceToUse)
                 setOnPreparedListener { mp ->
                     try {
                         val realDuration = mp.duration.toLong()

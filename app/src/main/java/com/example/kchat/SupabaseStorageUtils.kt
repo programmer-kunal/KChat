@@ -17,14 +17,13 @@ import java.util.UUID
 
 class SupabaseStorageUtils(val context: Context) {
 
-    val supabase = createSupabaseClient(
-        BuildConfig.SUPABASE_URL,
-        BuildConfig.SUPABASE_ANON_KEY
-    ) {
-        install(Storage)
-    }
+    val supabase get() = sharedClient
 
-    suspend fun uploadAudio(file: File): String? = withContext(Dispatchers.IO) {
+    suspend fun uploadAudio(file: File, channelID: String? = null): String? = withContext(Dispatchers.IO) {
+        if (!channelID.isNullOrEmpty() && channelID != "world_chat") {
+            val fileName = "${UUID.randomUUID()}.m4a"
+            return@withContext VaultMediaManager.uploadFileToVault(channelID, fileName, file, "audio/mp4")
+        }
         try {
             val fileName = "${UUID.randomUUID()}.m4a"
             val bytes = file.readBytes()
@@ -37,7 +36,11 @@ class SupabaseStorageUtils(val context: Context) {
         }
     }
 
-    suspend fun uploadVideo(file: File): String? = withContext(Dispatchers.IO) {
+    suspend fun uploadVideo(file: File, channelID: String? = null): String? = withContext(Dispatchers.IO) {
+        if (!channelID.isNullOrEmpty() && channelID != "world_chat") {
+            val fileName = "${UUID.randomUUID()}.mp4"
+            return@withContext VaultMediaManager.uploadFileToVault(channelID, fileName, file, "video/mp4")
+        }
         try {
             val fileName = "${UUID.randomUUID()}.mp4"
             val bytes = file.readBytes()
@@ -50,10 +53,13 @@ class SupabaseStorageUtils(val context: Context) {
         }
     }
 
-    suspend fun uploadFile(file: File, originalFileName: String, mimeType: String): String? = withContext(Dispatchers.IO) {
+    suspend fun uploadFile(file: File, originalFileName: String, mimeType: String, channelID: String? = null): String? = withContext(Dispatchers.IO) {
+        val ext = originalFileName.substringAfterLast('.', "").let { if (it.isNotEmpty()) ".$it" else "" }
+        val storageFileName = "${UUID.randomUUID()}$ext"
+        if (!channelID.isNullOrEmpty() && channelID != "world_chat") {
+            return@withContext VaultMediaManager.uploadFileToVault(channelID, storageFileName, file, mimeType.ifBlank { "application/octet-stream" })
+        }
         try {
-            val ext = originalFileName.substringAfterLast('.', "").let { if (it.isNotEmpty()) ".$it" else "" }
-            val storageFileName = "${UUID.randomUUID()}$ext"
             val bytes = file.readBytes()
             supabase.storage.from(BUCKET_NAME).upload(storageFileName, bytes)
             val publicUrl = supabase.storage.from(BUCKET_NAME).publicUrl(storageFileName)
@@ -64,10 +70,14 @@ class SupabaseStorageUtils(val context: Context) {
         }
     }
 
-    suspend fun uploadImage(uri: Uri): String? = withContext(Dispatchers.IO) {
+    suspend fun uploadImage(uri: Uri, channelID: String? = null): String? = withContext(Dispatchers.IO) {
         try {
             val processedImage = prepareImageBytes(uri) ?: return@withContext null
             val fileName = "${UUID.randomUUID()}.${processedImage.extension}"
+            val mimeType = if (processedImage.extension.equals("png", ignoreCase = true)) "image/png" else "image/jpeg"
+            if (!channelID.isNullOrEmpty() && channelID != "world_chat") {
+                return@withContext VaultMediaManager.uploadBytesToVault(channelID, fileName, processedImage.bytes, mimeType)
+            }
             supabase.storage.from(BUCKET_NAME).upload(fileName, processedImage.bytes)
             val publicUrl = supabase.storage.from(BUCKET_NAME).publicUrl(fileName)
             return@withContext publicUrl
@@ -218,5 +228,14 @@ class SupabaseStorageUtils(val context: Context) {
 
     companion object {
         const val BUCKET_NAME = "chatter_images"
+
+        val sharedClient by lazy {
+            createSupabaseClient(
+                BuildConfig.SUPABASE_URL,
+                BuildConfig.SUPABASE_ANON_KEY
+            ) {
+                install(Storage)
+            }
+        }
     }
 }

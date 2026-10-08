@@ -40,6 +40,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +54,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.kchat.R
+import com.example.kchat.VaultMediaManager
+import kotlinx.coroutines.launch
 
 @Composable
 fun VideoMessageBubble(
@@ -65,6 +68,11 @@ fun VideoMessageBubble(
     onFullScreenClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    var resolvedVideoUrl by remember(videoUrl) {
+        mutableStateOf<String?>(if (!VaultMediaManager.isVaultUrl(videoUrl)) videoUrl else VaultMediaManager.getCachedUrlOnly(videoUrl))
+    }
+
     val currentPlayingUrl by videoPlayerHelper.currentPlayingUrl.collectAsState()
     val isPlaying by videoPlayerHelper.isPlaying.collectAsState()
     val currentPositionMs by videoPlayerHelper.currentPositionMs.collectAsState()
@@ -72,7 +80,7 @@ fun VideoMessageBubble(
     val isBuffering by videoPlayerHelper.isBuffering.collectAsState()
     val hasError by videoPlayerHelper.hasError.collectAsState()
 
-    val isThisActive = currentPlayingUrl == videoUrl
+    val isThisActive = currentPlayingUrl == videoUrl || (resolvedVideoUrl != null && currentPlayingUrl == resolvedVideoUrl)
     val isThisPlaying = isThisActive && isPlaying
 
     val effectiveTotalDuration = if (isThisActive && activeDurationMs > 0L) {
@@ -89,9 +97,10 @@ fun VideoMessageBubble(
         0f
     }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
     var thumbnail by remember(videoUrl) { mutableStateOf<Bitmap?>(null) }
     LaunchedEffect(videoUrl) {
-        thumbnail = VideoThumbnailLoader.loadThumbnail(videoUrl)
+        thumbnail = VideoThumbnailLoader.loadThumbnail(videoUrl, context)
     }
 
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -109,7 +118,13 @@ fun VideoMessageBubble(
                 if (isInSelectionMode) {
                     onBubbleClick()
                 } else {
-                    videoPlayerHelper.togglePlayPause(videoUrl, durationMs)
+                    coroutineScope.launch {
+                        val urlToPlay = resolvedVideoUrl ?: VaultMediaManager.resolveMediaUrl(videoUrl)
+                        resolvedVideoUrl = urlToPlay
+                        if (urlToPlay != null) {
+                            videoPlayerHelper.togglePlayPause(urlToPlay, durationMs)
+                        }
+                    }
                 }
             }
     ) {
@@ -195,7 +210,13 @@ fun VideoMessageBubble(
                 if (isInSelectionMode) {
                     onBubbleClick()
                 } else {
-                    onFullScreenClick(videoUrl)
+                    coroutineScope.launch {
+                        val urlToPlay = resolvedVideoUrl ?: VaultMediaManager.resolveMediaUrl(videoUrl)
+                        resolvedVideoUrl = urlToPlay
+                        if (urlToPlay != null) {
+                            onFullScreenClick(urlToPlay)
+                        }
+                    }
                 }
             },
             modifier = Modifier
