@@ -489,6 +489,7 @@ class HomeViewModel @Inject constructor() : ViewModel() {
         updates["/channel/$key"] = name
         updates["/channel_creator/$key"] = currentUser.uid
         updates["/channels/$key/users/${currentUser.uid}"] = true
+        updates["/channels/$key/epochId"] = 1
         memberFriendUids.forEach { friendUid ->
             if (friendUid.isNotBlank()) {
                 updates["/channels/$key/users/$friendUid"] = true

@@ -22,6 +22,9 @@ import im.zego.zim.enums.ZIMConnectionEvent
 import org.json.JSONObject
 import timber.log.Timber
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @HiltAndroidApp
 class KChat: Application() {
@@ -35,6 +38,14 @@ class KChat: Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // Initialize Google Tink Cryptographic Providers (Phase 2D E2EE)
+        try {
+            com.google.crypto.tink.aead.AeadConfig.register()
+            com.google.crypto.tink.hybrid.HybridConfig.register()
+        } catch (e: Exception) {
+            Log.e("KChat", "Failed to register Tink configs: ${e.message}")
+        }
 
         // Initialize theme preference from SharedPreferences
         com.example.kchat.ui.theme.ThemeManager.init(this)
@@ -119,11 +130,17 @@ class KChat: Application() {
                                 .setValue(token)
                             Log.d("NotificationDebug", "FCM token uploaded to database for user: $email")
                         }
+
+                        // Phase 2D: Register device identity and HPKE keys in /user_devices/$uid/$deviceId
+                        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                            com.example.kchat.crypto.DeviceKeyManager.registerCurrentDevice(this@KChat, uid)
+                        }
                     }
                 }
             } else {
                 Log.d("NotificationDebug", "AuthStateListener -> User is null (logged out)")
                 currentInitializedUser = null
+                com.example.kchat.crypto.EncryptedMediaManager.clear(this@KChat)
             }
         }
     }

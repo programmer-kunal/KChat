@@ -66,6 +66,8 @@ fun VideoMessageBubble(
     videoPlayerHelper: VideoPlayerHelper,
     onBubbleClick: () -> Unit = {},
     onFullScreenClick: (String) -> Unit = {},
+    message: com.example.kchat.model.Message? = null,
+    channelId: String? = null,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -100,7 +102,9 @@ fun VideoMessageBubble(
     val context = androidx.compose.ui.platform.LocalContext.current
     var thumbnail by remember(videoUrl) { mutableStateOf<Bitmap?>(null) }
     LaunchedEffect(videoUrl) {
-        thumbnail = VideoThumbnailLoader.loadThumbnail(videoUrl, context)
+        if (message?.mediaEncrypted != true) {
+            thumbnail = VideoThumbnailLoader.loadThumbnail(videoUrl, context)
+        }
     }
 
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -119,10 +123,17 @@ fun VideoMessageBubble(
                     onBubbleClick()
                 } else {
                     coroutineScope.launch {
-                        val urlToPlay = resolvedVideoUrl ?: VaultMediaManager.resolveMediaUrl(videoUrl)
-                        resolvedVideoUrl = urlToPlay
-                        if (urlToPlay != null) {
-                            videoPlayerHelper.togglePlayPause(urlToPlay, durationMs)
+                        if (message?.mediaEncrypted == true && channelId != null) {
+                            val decFile = com.example.kchat.crypto.EncryptedMediaManager.getOrDecryptVideoFile(context, channelId, message)
+                            if (decFile != null) {
+                                videoPlayerHelper.togglePlayPause(decFile.absolutePath, durationMs)
+                            }
+                        } else {
+                            val urlToPlay = resolvedVideoUrl ?: VaultMediaManager.resolveMediaUrl(videoUrl)
+                            resolvedVideoUrl = urlToPlay
+                            if (urlToPlay != null) {
+                                videoPlayerHelper.togglePlayPause(urlToPlay, durationMs)
+                            }
                         }
                     }
                 }

@@ -28,5 +28,10 @@ data class Message(
     val originalChatId: String? = null,
     val originalChatName: String? = null,
     val originalSenderId: String? = null,
-    val originalSenderName: String? = null
+    val originalSenderName: String? = null,
+    val mediaEncrypted: Boolean? = null,
+    val mediaVersion: Int? = null,
+    val encryptedMediaKeys: Map<String, String>? = null,
+    val groupEpochId: Int? = null,
+    val senderKeyIndex: Int? = null
 )

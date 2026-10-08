@@ -49,6 +49,8 @@ fun FileMessageBubble(
     isCurrentUser: Boolean,
     isInSelectionMode: Boolean,
     onBubbleClick: () -> Unit = {},
+    message: com.example.kchat.model.Message? = null,
+    channelId: String? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -88,13 +90,32 @@ fun FileMessageBubble(
                     onBubbleClick()
                 } else if (!isLoading) {
                     coroutineScope.launch {
-                        FileUtils.openFile(
-                            context = context,
-                            fileUrl = fileUrl,
-                            fileName = fileName,
-                            mimeType = fileMimeType,
-                            onLoadingChange = { isLoading = it }
-                        )
+                        if (message?.mediaEncrypted == true && channelId != null) {
+                            isLoading = true
+                            try {
+                                val decFile = com.example.kchat.crypto.EncryptedMediaManager.getOrDecryptDocumentFile(context, channelId, message)
+                                if (decFile != null) {
+                                    val contentUri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.provider", decFile)
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                        setDataAndType(contentUri, fileMimeType ?: "application/octet-stream")
+                                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(android.content.Intent.createChooser(intent, "Open with"))
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("FileMessageBubble", "Failed to open encrypted file: ${e.message}")
+                            } finally {
+                                isLoading = false
+                            }
+                        } else {
+                            FileUtils.openFile(
+                                context = context,
+                                fileUrl = fileUrl,
+                                fileName = fileName,
+                                mimeType = fileMimeType,
+                                onLoadingChange = { isLoading = it }
+                            )
+                        }
                     }
                 }
             }

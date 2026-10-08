@@ -58,8 +58,11 @@ fun AudioMessageBubble(
     isInSelectionMode: Boolean,
     audioPlayerHelper: AudioPlayerHelper,
     onBubbleClick: () -> Unit = {},
+    message: com.example.kchat.model.Message? = null,
+    channelId: String? = null,
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val currentPlayingUrl by audioPlayerHelper.currentPlayingUrl.collectAsState()
     val isPlaying by audioPlayerHelper.isPlaying.collectAsState()
     val currentPositionMs by audioPlayerHelper.currentPositionMs.collectAsState()
@@ -127,10 +130,17 @@ fun AudioMessageBubble(
                         onBubbleClick()
                     } else {
                         coroutineScope.launch {
-                            val urlToPlay = resolvedAudioUrl ?: VaultMediaManager.resolveMediaUrl(audioUrl)
-                            resolvedAudioUrl = urlToPlay
-                            if (urlToPlay != null) {
-                                audioPlayerHelper.togglePlayPause(urlToPlay, durationMs, cacheKey = audioUrl)
+                            if (message?.mediaEncrypted == true && channelId != null) {
+                                val decFile = com.example.kchat.crypto.EncryptedMediaManager.getOrDecryptAudioFile(context, channelId, message)
+                                if (decFile != null) {
+                                    audioPlayerHelper.togglePlayPause(decFile.absolutePath, durationMs, cacheKey = audioUrl)
+                                }
+                            } else {
+                                val urlToPlay = resolvedAudioUrl ?: VaultMediaManager.resolveMediaUrl(audioUrl)
+                                resolvedAudioUrl = urlToPlay
+                                if (urlToPlay != null) {
+                                    audioPlayerHelper.togglePlayPause(urlToPlay, durationMs, cacheKey = audioUrl)
+                                }
                             }
                         }
                     }
@@ -160,11 +170,19 @@ fun AudioMessageBubble(
                             audioPlayerHelper.seekTo(seekTarget)
                         } else {
                             coroutineScope.launch {
-                                val urlToPlay = resolvedAudioUrl ?: VaultMediaManager.resolveMediaUrl(audioUrl)
-                                resolvedAudioUrl = urlToPlay
-                                if (urlToPlay != null) {
-                                    audioPlayerHelper.play(urlToPlay, durationMs, cacheKey = audioUrl)
-                                    audioPlayerHelper.seekTo(seekTarget)
+                                if (message?.mediaEncrypted == true && channelId != null) {
+                                    val decFile = com.example.kchat.crypto.EncryptedMediaManager.getOrDecryptAudioFile(context, channelId, message)
+                                    if (decFile != null) {
+                                        audioPlayerHelper.play(decFile.absolutePath, durationMs, cacheKey = audioUrl)
+                                        audioPlayerHelper.seekTo(seekTarget)
+                                    }
+                                } else {
+                                    val urlToPlay = resolvedAudioUrl ?: VaultMediaManager.resolveMediaUrl(audioUrl)
+                                    resolvedAudioUrl = urlToPlay
+                                    if (urlToPlay != null) {
+                                        audioPlayerHelper.play(urlToPlay, durationMs, cacheKey = audioUrl)
+                                        audioPlayerHelper.seekTo(seekTarget)
+                                    }
                                 }
                             }
                         }

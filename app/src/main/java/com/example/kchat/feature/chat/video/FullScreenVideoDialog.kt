@@ -55,8 +55,11 @@ import com.example.kchat.R
 fun FullScreenVideoDialog(
     videoUrl: String,
     videoPlayerHelper: VideoPlayerHelper,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    message: com.example.kchat.model.Message? = null,
+    channelId: String? = null
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var resolvedVideoUrl by remember(videoUrl) {
         mutableStateOf<String?>(if (!VaultMediaManager.isVaultUrl(videoUrl)) videoUrl else VaultMediaManager.getCachedUrlOnly(videoUrl))
@@ -91,9 +94,16 @@ fun FullScreenVideoDialog(
                             override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
                                 videoPlayerHelper.attachSurface(Surface(st))
                                 coroutineScope.launch {
-                                    val urlToPlay = resolvedVideoUrl ?: VaultMediaManager.resolveMediaUrl(videoUrl) ?: videoUrl
-                                    resolvedVideoUrl = urlToPlay
-                                    videoPlayerHelper.play(urlToPlay, durationMs)
+                                    if (message?.mediaEncrypted == true && channelId != null) {
+                                        val decFile = com.example.kchat.crypto.EncryptedMediaManager.getOrDecryptVideoFile(context, channelId, message)
+                                        if (decFile != null) {
+                                            videoPlayerHelper.play(decFile.absolutePath, durationMs)
+                                        }
+                                    } else {
+                                        val urlToPlay = resolvedVideoUrl ?: VaultMediaManager.resolveMediaUrl(videoUrl) ?: videoUrl
+                                        resolvedVideoUrl = urlToPlay
+                                        videoPlayerHelper.play(urlToPlay, durationMs)
+                                    }
                                 }
                             }
 
@@ -115,9 +125,16 @@ fun FullScreenVideoDialog(
                         indication = null
                     ) {
                         coroutineScope.launch {
-                            val urlToPlay = resolvedVideoUrl ?: VaultMediaManager.resolveMediaUrl(videoUrl) ?: videoUrl
-                            resolvedVideoUrl = urlToPlay
-                            videoPlayerHelper.togglePlayPause(urlToPlay, durationMs)
+                            if (message?.mediaEncrypted == true && channelId != null) {
+                                val decFile = com.example.kchat.crypto.EncryptedMediaManager.getOrDecryptVideoFile(context, channelId, message)
+                                if (decFile != null) {
+                                    videoPlayerHelper.togglePlayPause(decFile.absolutePath, durationMs)
+                                }
+                            } else {
+                                val urlToPlay = resolvedVideoUrl ?: VaultMediaManager.resolveMediaUrl(videoUrl) ?: videoUrl
+                                resolvedVideoUrl = urlToPlay
+                                videoPlayerHelper.togglePlayPause(urlToPlay, durationMs)
+                            }
                         }
                     }
             )

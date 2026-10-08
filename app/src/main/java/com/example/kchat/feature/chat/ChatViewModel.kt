@@ -29,6 +29,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import com.example.kchat.feature.home.HomeViewModel
+import android.widget.Toast
+import com.example.kchat.crypto.EncryptedMediaManager
 import java.io.File
 import java.util.UUID
 import javax.inject.Inject
@@ -88,7 +90,13 @@ class ChatViewModel @Inject constructor(
         fileUrl: String? = null,
         fileName: String? = null,
         fileMimeType: String? = null,
-        fileSizeBytes: Long? = null
+        fileSizeBytes: Long? = null,
+        mediaEncrypted: Boolean? = null,
+        mediaVersion: Int? = null,
+        encryptedMediaKeys: Map<String, String>? = null,
+        groupEpochId: Int? = null,
+        senderKeyIndex: Int? = null,
+        preGeneratedMessageId: String? = null
     ) {
         val sendMsgCount = debugSendMessageCounter.incrementAndGet()
         val threadName = Thread.currentThread().name
@@ -115,14 +123,16 @@ class ChatViewModel @Inject constructor(
                             proceedWithSendMessage(
                                 channelID, messageText, image, fetchedChannelName, username, profileImage, uid,
                                 replyToMessageId, replyToSenderName, replyToMessageText, audioUrl, audioDurationMs,
-                                videoUrl, videoDurationMs, fileUrl, fileName, fileMimeType, fileSizeBytes
+                                videoUrl, videoDurationMs, fileUrl, fileName, fileMimeType, fileSizeBytes,
+                                mediaEncrypted, mediaVersion, encryptedMediaKeys, groupEpochId, senderKeyIndex, preGeneratedMessageId
                             )
                         }
                         override fun onCancelled(error: DatabaseError) {
                             proceedWithSendMessage(
                                 channelID, messageText, image, "Group Chat", username, profileImage, uid,
                                 replyToMessageId, replyToSenderName, replyToMessageText, audioUrl, audioDurationMs,
-                                videoUrl, videoDurationMs, fileUrl, fileName, fileMimeType, fileSizeBytes
+                                videoUrl, videoDurationMs, fileUrl, fileName, fileMimeType, fileSizeBytes,
+                                mediaEncrypted, mediaVersion, encryptedMediaKeys, groupEpochId, senderKeyIndex, preGeneratedMessageId
                             )
                         }
                     })
@@ -130,7 +140,8 @@ class ChatViewModel @Inject constructor(
                     proceedWithSendMessage(
                         channelID, messageText, image, channelName, username, profileImage, uid,
                         replyToMessageId, replyToSenderName, replyToMessageText, audioUrl, audioDurationMs,
-                        videoUrl, videoDurationMs, fileUrl, fileName, fileMimeType, fileSizeBytes
+                        videoUrl, videoDurationMs, fileUrl, fileName, fileMimeType, fileSizeBytes,
+                        mediaEncrypted, mediaVersion, encryptedMediaKeys, groupEpochId, senderKeyIndex, preGeneratedMessageId
                     )
                 }
             }
@@ -161,10 +172,16 @@ class ChatViewModel @Inject constructor(
         fileUrl: String? = null,
         fileName: String? = null,
         fileMimeType: String? = null,
-        fileSizeBytes: Long? = null
+        fileSizeBytes: Long? = null,
+        mediaEncrypted: Boolean? = null,
+        mediaVersion: Int? = null,
+        encryptedMediaKeys: Map<String, String>? = null,
+        groupEpochId: Int? = null,
+        senderKeyIndex: Int? = null,
+        preGeneratedMessageId: String? = null
     ) {
-        val pushRef = db.reference.child("messages").child(channelID).push()
-        val messageId = pushRef.key ?: UUID.randomUUID().toString()
+        val messageId = preGeneratedMessageId ?: (db.reference.child("messages").child(channelID).push().key ?: UUID.randomUUID().toString())
+        val pushRef = db.reference.child("messages").child(channelID).child(messageId)
         val isSelfChat = channelID.startsWith("self_chat_")
         val message = Message(
             id = messageId,
@@ -176,8 +193,6 @@ class ChatViewModel @Inject constructor(
             imageUrl = image,
             readBy = if (isSelfChat) mapOf(uid to true) else null,
             deliveredBy = if (isSelfChat) mapOf(uid to true) else null,
-            readAt = if (isSelfChat) mapOf(uid to System.currentTimeMillis()) else null,
-            deliveredAt = if (isSelfChat) mapOf(uid to System.currentTimeMillis()) else null,
             replyToMessageId = replyToMessageId,
             replyToSenderName = replyToSenderName,
             replyToMessageText = replyToMessageText,
@@ -189,7 +204,12 @@ class ChatViewModel @Inject constructor(
             fileName = fileName,
             fileMimeType = fileMimeType,
             fileSizeBytes = fileSizeBytes,
-            isSavedMessage = false
+            isSavedMessage = false,
+            mediaEncrypted = mediaEncrypted,
+            mediaVersion = mediaVersion,
+            encryptedMediaKeys = encryptedMediaKeys,
+            groupEpochId = groupEpochId,
+            senderKeyIndex = senderKeyIndex
         )
 
         pushRef.setValue(message)
@@ -416,18 +436,94 @@ class ChatViewModel @Inject constructor(
         replyToMessageText: String? = null
     ) {
         viewModelScope.launch {
-            val storageUtils = SupabaseStorageUtils(context)
-            val downloadUri = storageUtils.uploadImage(uri, channelID = channelID)
-            downloadUri?.let {
-                sendMessage(
-                    channelID = channelID,
-                    messageText = null,
-                    image = downloadUri,
-                    channelName = channelName,
-                    replyToMessageId = replyToMessageId,
-                    replyToSenderName = replyToSenderName,
-                    replyToMessageText = replyToMessageText
+            val fileSize = try {
+                context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
+            } catch (e: Exception) { 0L }
+            if (fileSize > EncryptedMediaManager.MAX_MEDIA_SIZE_BYTES) {
+                Toast.makeText(context, "Media exceeds 50 MB limit", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+
+            // World Chat: legacy public unencrypted media
+            if (channelID == HomeViewModel.WORLD_CHAT_ID) {
+                val storageUtils = SupabaseStorageUtils(context)
+                val downloadUri = storageUtils.uploadImage(uri, channelID = channelID)
+                downloadUri?.let {
+                    sendMessage(
+                        channelID = channelID,
+                        messageText = null,
+                        image = downloadUri,
+                        channelName = channelName,
+                        replyToMessageId = replyToMessageId,
+                        replyToSenderName = replyToSenderName,
+                        replyToMessageText = replyToMessageText
+                    )
+                }
+                return@launch
+            }
+
+            // Phase 2D: Direct Chat or Group Chat E2EE
+            val currentUser = Firebase.auth.currentUser ?: return@launch
+            val senderUid = currentUser.uid
+            val preGenPushRef = db.reference.child("messages").child(channelID).push()
+            val messageId = preGenPushRef.key ?: UUID.randomUUID().toString()
+
+            val rawBytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@launch
+            val isDirectChat = (channelID.contains("_") || channelID.startsWith("self_chat_")) && !channelID.startsWith("-")
+
+            if (isDirectChat) {
+                val recipientUid = if (channelID.startsWith("self_chat_")) senderUid else channelID.split("_").firstOrNull { it != senderUid } ?: senderUid
+                val result = EncryptedMediaManager.encryptAndUploadDirectMedia(
+                    context = context,
+                    channelId = channelID,
+                    messageId = messageId,
+                    mediaType = "IMAGE",
+                    recipientUid = recipientUid,
+                    senderUid = senderUid,
+                    rawBytes = rawBytes,
+                    mimeType = "image/jpeg"
                 )
+                result?.let {
+                    sendMessage(
+                        channelID = channelID,
+                        messageText = null,
+                        image = it.vaultUrl,
+                        channelName = channelName,
+                        replyToMessageId = replyToMessageId,
+                        replyToSenderName = replyToSenderName,
+                        replyToMessageText = replyToMessageText,
+                        mediaEncrypted = true,
+                        mediaVersion = 1,
+                        encryptedMediaKeys = it.encryptedMediaKeys,
+                        preGeneratedMessageId = messageId
+                    )
+                }
+            } else {
+                val result = EncryptedMediaManager.encryptAndUploadGroupMedia(
+                    context = context,
+                    channelId = channelID,
+                    messageId = messageId,
+                    mediaType = "IMAGE",
+                    senderUid = senderUid,
+                    rawBytes = rawBytes,
+                    mimeType = "image/jpeg"
+                )
+                result?.let {
+                    sendMessage(
+                        channelID = channelID,
+                        messageText = null,
+                        image = it.vaultUrl,
+                        channelName = channelName,
+                        replyToMessageId = replyToMessageId,
+                        replyToSenderName = replyToSenderName,
+                        replyToMessageText = replyToMessageText,
+                        mediaEncrypted = true,
+                        mediaVersion = 1,
+                        groupEpochId = it.epochId,
+                        senderKeyIndex = it.senderKeyIndex,
+                        preGeneratedMessageId = messageId
+                    )
+                }
             }
         }
     }
@@ -442,28 +538,96 @@ class ChatViewModel @Inject constructor(
         replyToMessageText: String? = null
     ) {
         viewModelScope.launch {
-            val storageUtils = SupabaseStorageUtils(context)
-            val downloadUri = storageUtils.uploadAudio(file, channelID = channelID)
-            downloadUri?.let { audioUrl ->
-                sendMessage(
-                    channelID = channelID,
-                    messageText = null,
-                    image = null,
-                    channelName = channelName,
-                    replyToMessageId = replyToMessageId,
-                    replyToSenderName = replyToSenderName,
-                    replyToMessageText = replyToMessageText,
-                    audioUrl = audioUrl,
-                    audioDurationMs = durationMs
-                )
+            if (file.length() > EncryptedMediaManager.MAX_MEDIA_SIZE_BYTES) {
+                Toast.makeText(context, "Media exceeds 50 MB limit", Toast.LENGTH_SHORT).show()
+                return@launch
             }
-            try {
-                if (file.exists()) {
-                    file.delete()
+
+            if (channelID == HomeViewModel.WORLD_CHAT_ID) {
+                val storageUtils = SupabaseStorageUtils(context)
+                val downloadUri = storageUtils.uploadAudio(file, channelID = channelID)
+                downloadUri?.let { audioUrl ->
+                    sendMessage(
+                        channelID = channelID,
+                        messageText = null,
+                        image = null,
+                        channelName = channelName,
+                        replyToMessageId = replyToMessageId,
+                        replyToSenderName = replyToSenderName,
+                        replyToMessageText = replyToMessageText,
+                        audioUrl = audioUrl,
+                        audioDurationMs = durationMs
+                    )
                 }
-            } catch (e: Exception) {
-                // Ignore
+                try { if (file.exists()) file.delete() } catch (_: Exception) {}
+                return@launch
             }
+
+            val currentUser = Firebase.auth.currentUser ?: return@launch
+            val senderUid = currentUser.uid
+            val preGenPushRef = db.reference.child("messages").child(channelID).push()
+            val messageId = preGenPushRef.key ?: UUID.randomUUID().toString()
+            val isDirectChat = (channelID.contains("_") || channelID.startsWith("self_chat_")) && !channelID.startsWith("-")
+
+            if (isDirectChat) {
+                val recipientUid = if (channelID.startsWith("self_chat_")) senderUid else channelID.split("_").firstOrNull { it != senderUid } ?: senderUid
+                val result = EncryptedMediaManager.encryptAndUploadDirectMedia(
+                    context = context,
+                    channelId = channelID,
+                    messageId = messageId,
+                    mediaType = "AUDIO",
+                    recipientUid = recipientUid,
+                    senderUid = senderUid,
+                    rawFile = file,
+                    mimeType = "audio/mp4"
+                )
+                result?.let {
+                    sendMessage(
+                        channelID = channelID,
+                        messageText = null,
+                        image = null,
+                        channelName = channelName,
+                        replyToMessageId = replyToMessageId,
+                        replyToSenderName = replyToSenderName,
+                        replyToMessageText = replyToMessageText,
+                        audioUrl = it.vaultUrl,
+                        audioDurationMs = durationMs,
+                        mediaEncrypted = true,
+                        mediaVersion = 1,
+                        encryptedMediaKeys = it.encryptedMediaKeys,
+                        preGeneratedMessageId = messageId
+                    )
+                }
+            } else {
+                val result = EncryptedMediaManager.encryptAndUploadGroupMedia(
+                    context = context,
+                    channelId = channelID,
+                    messageId = messageId,
+                    mediaType = "AUDIO",
+                    senderUid = senderUid,
+                    rawFile = file,
+                    mimeType = "audio/mp4"
+                )
+                result?.let {
+                    sendMessage(
+                        channelID = channelID,
+                        messageText = null,
+                        image = null,
+                        channelName = channelName,
+                        replyToMessageId = replyToMessageId,
+                        replyToSenderName = replyToSenderName,
+                        replyToMessageText = replyToMessageText,
+                        audioUrl = it.vaultUrl,
+                        audioDurationMs = durationMs,
+                        mediaEncrypted = true,
+                        mediaVersion = 1,
+                        groupEpochId = it.epochId,
+                        senderKeyIndex = it.senderKeyIndex,
+                        preGeneratedMessageId = messageId
+                    )
+                }
+            }
+            try { if (file.exists()) file.delete() } catch (_: Exception) {}
         }
     }
 
@@ -477,28 +641,96 @@ class ChatViewModel @Inject constructor(
         replyToMessageText: String? = null
     ) {
         viewModelScope.launch {
-            val storageUtils = SupabaseStorageUtils(context)
-            val downloadUri = storageUtils.uploadVideo(file, channelID = channelID)
-            downloadUri?.let { videoUrl ->
-                sendMessage(
-                    channelID = channelID,
-                    messageText = null,
-                    image = null,
-                    channelName = channelName,
-                    replyToMessageId = replyToMessageId,
-                    replyToSenderName = replyToSenderName,
-                    replyToMessageText = replyToMessageText,
-                    videoUrl = videoUrl,
-                    videoDurationMs = durationMs
-                )
+            if (file.length() > EncryptedMediaManager.MAX_MEDIA_SIZE_BYTES) {
+                Toast.makeText(context, "Media exceeds 50 MB limit", Toast.LENGTH_SHORT).show()
+                return@launch
             }
-            try {
-                if (file.exists()) {
-                    file.delete()
+
+            if (channelID == HomeViewModel.WORLD_CHAT_ID) {
+                val storageUtils = SupabaseStorageUtils(context)
+                val downloadUri = storageUtils.uploadVideo(file, channelID = channelID)
+                downloadUri?.let { videoUrl ->
+                    sendMessage(
+                        channelID = channelID,
+                        messageText = null,
+                        image = null,
+                        channelName = channelName,
+                        replyToMessageId = replyToMessageId,
+                        replyToSenderName = replyToSenderName,
+                        replyToMessageText = replyToMessageText,
+                        videoUrl = videoUrl,
+                        videoDurationMs = durationMs
+                    )
                 }
-            } catch (e: Exception) {
-                // Ignore
+                try { if (file.exists()) file.delete() } catch (_: Exception) {}
+                return@launch
             }
+
+            val currentUser = Firebase.auth.currentUser ?: return@launch
+            val senderUid = currentUser.uid
+            val preGenPushRef = db.reference.child("messages").child(channelID).push()
+            val messageId = preGenPushRef.key ?: UUID.randomUUID().toString()
+            val isDirectChat = (channelID.contains("_") || channelID.startsWith("self_chat_")) && !channelID.startsWith("-")
+
+            if (isDirectChat) {
+                val recipientUid = if (channelID.startsWith("self_chat_")) senderUid else channelID.split("_").firstOrNull { it != senderUid } ?: senderUid
+                val result = EncryptedMediaManager.encryptAndUploadDirectMedia(
+                    context = context,
+                    channelId = channelID,
+                    messageId = messageId,
+                    mediaType = "VIDEO",
+                    recipientUid = recipientUid,
+                    senderUid = senderUid,
+                    rawFile = file,
+                    mimeType = "video/mp4"
+                )
+                result?.let {
+                    sendMessage(
+                        channelID = channelID,
+                        messageText = null,
+                        image = null,
+                        channelName = channelName,
+                        replyToMessageId = replyToMessageId,
+                        replyToSenderName = replyToSenderName,
+                        replyToMessageText = replyToMessageText,
+                        videoUrl = it.vaultUrl,
+                        videoDurationMs = durationMs,
+                        mediaEncrypted = true,
+                        mediaVersion = 1,
+                        encryptedMediaKeys = it.encryptedMediaKeys,
+                        preGeneratedMessageId = messageId
+                    )
+                }
+            } else {
+                val result = EncryptedMediaManager.encryptAndUploadGroupMedia(
+                    context = context,
+                    channelId = channelID,
+                    messageId = messageId,
+                    mediaType = "VIDEO",
+                    senderUid = senderUid,
+                    rawFile = file,
+                    mimeType = "video/mp4"
+                )
+                result?.let {
+                    sendMessage(
+                        channelID = channelID,
+                        messageText = null,
+                        image = null,
+                        channelName = channelName,
+                        replyToMessageId = replyToMessageId,
+                        replyToSenderName = replyToSenderName,
+                        replyToMessageText = replyToMessageText,
+                        videoUrl = it.vaultUrl,
+                        videoDurationMs = durationMs,
+                        mediaEncrypted = true,
+                        mediaVersion = 1,
+                        groupEpochId = it.epochId,
+                        senderKeyIndex = it.senderKeyIndex,
+                        preGeneratedMessageId = messageId
+                    )
+                }
+            }
+            try { if (file.exists()) file.delete() } catch (_: Exception) {}
         }
     }
 
@@ -514,30 +746,102 @@ class ChatViewModel @Inject constructor(
         replyToMessageText: String? = null
     ) {
         viewModelScope.launch {
-            val storageUtils = SupabaseStorageUtils(context)
-            val downloadUri = storageUtils.uploadFile(file, fileName, mimeType, channelID = channelID)
-            downloadUri?.let { fileUrl ->
-                sendMessage(
-                    channelID = channelID,
-                    messageText = null,
-                    image = null,
-                    channelName = channelName,
-                    replyToMessageId = replyToMessageId,
-                    replyToSenderName = replyToSenderName,
-                    replyToMessageText = replyToMessageText,
-                    fileUrl = fileUrl,
-                    fileName = fileName,
-                    fileMimeType = mimeType,
-                    fileSizeBytes = fileSizeBytes
-                )
+            if (file.length() > EncryptedMediaManager.MAX_MEDIA_SIZE_BYTES) {
+                Toast.makeText(context, "Media exceeds 50 MB limit", Toast.LENGTH_SHORT).show()
+                return@launch
             }
-            try {
-                if (file.exists()) {
-                    file.delete()
+
+            if (channelID == HomeViewModel.WORLD_CHAT_ID) {
+                val storageUtils = SupabaseStorageUtils(context)
+                val downloadUri = storageUtils.uploadFile(file, fileName, mimeType, channelID = channelID)
+                downloadUri?.let { fileUrl ->
+                    sendMessage(
+                        channelID = channelID,
+                        messageText = null,
+                        image = null,
+                        channelName = channelName,
+                        replyToMessageId = replyToMessageId,
+                        replyToSenderName = replyToSenderName,
+                        replyToMessageText = replyToMessageText,
+                        fileUrl = fileUrl,
+                        fileName = fileName,
+                        fileMimeType = mimeType,
+                        fileSizeBytes = fileSizeBytes
+                    )
                 }
-            } catch (e: Exception) {
-                // Ignore
+                try { if (file.exists()) file.delete() } catch (_: Exception) {}
+                return@launch
             }
+
+            val currentUser = Firebase.auth.currentUser ?: return@launch
+            val senderUid = currentUser.uid
+            val preGenPushRef = db.reference.child("messages").child(channelID).push()
+            val messageId = preGenPushRef.key ?: UUID.randomUUID().toString()
+            val isDirectChat = (channelID.contains("_") || channelID.startsWith("self_chat_")) && !channelID.startsWith("-")
+
+            if (isDirectChat) {
+                val recipientUid = if (channelID.startsWith("self_chat_")) senderUid else channelID.split("_").firstOrNull { it != senderUid } ?: senderUid
+                val result = EncryptedMediaManager.encryptAndUploadDirectMedia(
+                    context = context,
+                    channelId = channelID,
+                    messageId = messageId,
+                    mediaType = "DOCUMENT",
+                    recipientUid = recipientUid,
+                    senderUid = senderUid,
+                    rawFile = file,
+                    mimeType = mimeType
+                )
+                result?.let {
+                    sendMessage(
+                        channelID = channelID,
+                        messageText = null,
+                        image = null,
+                        channelName = channelName,
+                        replyToMessageId = replyToMessageId,
+                        replyToSenderName = replyToSenderName,
+                        replyToMessageText = replyToMessageText,
+                        fileUrl = it.vaultUrl,
+                        fileName = fileName,
+                        fileMimeType = mimeType,
+                        fileSizeBytes = fileSizeBytes,
+                        mediaEncrypted = true,
+                        mediaVersion = 1,
+                        encryptedMediaKeys = it.encryptedMediaKeys,
+                        preGeneratedMessageId = messageId
+                    )
+                }
+            } else {
+                val result = EncryptedMediaManager.encryptAndUploadGroupMedia(
+                    context = context,
+                    channelId = channelID,
+                    messageId = messageId,
+                    mediaType = "DOCUMENT",
+                    senderUid = senderUid,
+                    rawFile = file,
+                    mimeType = mimeType
+                )
+                result?.let {
+                    sendMessage(
+                        channelID = channelID,
+                        messageText = null,
+                        image = null,
+                        channelName = channelName,
+                        replyToMessageId = replyToMessageId,
+                        replyToSenderName = replyToSenderName,
+                        replyToMessageText = replyToMessageText,
+                        fileUrl = it.vaultUrl,
+                        fileName = fileName,
+                        fileMimeType = mimeType,
+                        fileSizeBytes = fileSizeBytes,
+                        mediaEncrypted = true,
+                        mediaVersion = 1,
+                        groupEpochId = it.epochId,
+                        senderKeyIndex = it.senderKeyIndex,
+                        preGeneratedMessageId = messageId
+                    )
+                }
+            }
+            try { if (file.exists()) file.delete() } catch (_: Exception) {}
         }
     }
 

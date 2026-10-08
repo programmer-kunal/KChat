@@ -527,6 +527,15 @@ fun CustomGroupInfoDialog(
                             .addOnSuccessListener {
                                 groupMembersList = groupMembersList.filter { it.uid != uidToRemove }
                                 memberToRemove = null
+                                // Phase 2D: Increment groupEpochId for Future-Message Access Revocation
+                                db.reference.child("channels").child(channelId).child("epochId").runTransaction(object : com.google.firebase.database.Transaction.Handler {
+                                    override fun doTransaction(currentData: com.google.firebase.database.MutableData): com.google.firebase.database.Transaction.Result {
+                                        val currentEpoch = currentData.getValue(Int::class.java) ?: 1
+                                        currentData.value = currentEpoch + 1
+                                        return com.google.firebase.database.Transaction.success(currentData)
+                                    }
+                                    override fun onComplete(error: com.google.firebase.database.DatabaseError?, committed: Boolean, currentData: com.google.firebase.database.DataSnapshot?) {}
+                                })
                             }
                             .addOnFailureListener { error ->
                                 Toast.makeText(context, error.message ?: "Failed to remove member", Toast.LENGTH_SHORT).show()

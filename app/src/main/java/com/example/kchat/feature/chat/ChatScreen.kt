@@ -328,6 +328,7 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
 
         // --- Video Messaging States & Launchers ---
         var fullScreenVideoUrl by remember { mutableStateOf<String?>(null) }
+        var fullScreenVideoMessage by remember { mutableStateOf<Message?>(null) }
         val cameraVideoUri = remember { mutableStateOf<Uri?>(null) }
         val cameraVideoFile = remember { mutableStateOf<File?>(null) }
 
@@ -816,8 +817,10 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
                 onSendAudioRecording = sendAudioAction,
                 onStartAudioRecording = startAudioRecordingAction,
                 audioPlayerHelper = audioPlayerHelper,
-                videoPlayerHelper = videoPlayerHelper,
-                onFullScreenVideoClick = { url -> fullScreenVideoUrl = url }
+                onFullScreenVideoClick = { url, msg ->
+                    fullScreenVideoUrl = url
+                    fullScreenVideoMessage = msg
+                }
             )
         }
 
@@ -1094,8 +1097,11 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
             FullScreenVideoDialog(
                 videoUrl = fullScreenVideoUrl!!,
                 videoPlayerHelper = videoPlayerHelper,
+                message = fullScreenVideoMessage,
+                channelId = channelId,
                 onDismiss = {
                     fullScreenVideoUrl = null
+                    fullScreenVideoMessage = null
                 }
             )
         }
@@ -1301,7 +1307,7 @@ fun ChatMessages(
     onStartAudioRecording: () -> Unit = {},
     audioPlayerHelper: AudioPlayerHelper? = null,
     videoPlayerHelper: VideoPlayerHelper? = null,
-    onFullScreenVideoClick: (String) -> Unit = {}
+    onFullScreenVideoClick: (String, Message) -> Unit = { _, _ -> }
 ){
     val context = LocalContext.current
     val listState = rememberLazyListState()
@@ -1691,6 +1697,7 @@ fun ChatMessages(
                         ChatBubble(
                             message = message,
                             isSelected = isSelected,
+                            channelId = channelID,
                             isInSelectionMode = selectedMessages.isNotEmpty(),
                             isHighlighted = (message.id == highlightedMessageId),
                             isFirstInGroup = isFirstInGroup,
@@ -2012,6 +2019,7 @@ fun QuotedReplyCard(
 fun ChatBubble(
     message: Message,
     isSelected: Boolean,
+    channelId: String = "",
     isInSelectionMode: Boolean = false,
     isHighlighted: Boolean = false,
     isFirstInGroup: Boolean = true,
@@ -2023,13 +2031,14 @@ fun ChatBubble(
     onJumpToOriginalMessage: (String, String, String) -> Unit = { _, _, _ -> },
     audioPlayerHelper: AudioPlayerHelper? = null,
     videoPlayerHelper: VideoPlayerHelper? = null,
-    onFullScreenVideoClick: (String) -> Unit = {},
+    onFullScreenVideoClick: (String, Message) -> Unit = { _, _ -> },
     isDirectChat: Boolean = false,
     isWorldChat: Boolean = false,
     isSelfChat: Boolean = false,
     groupMemberUids: Set<String> = emptySet(),
     directOtherUid: String? = null
 ) {
+    val context = LocalContext.current
     val currentUid = Firebase.auth.currentUser?.uid ?: ""
     val isSavedFromAnotherChat = isSelfChat && message.isSavedMessage &&
             !message.originalChatId.isNullOrEmpty() &&
@@ -2393,16 +2402,21 @@ fun ChatBubble(
 
                             if (message.imageUrl != null) {
                                 var imageAspectRatio by remember(message.imageUrl) { mutableFloatStateOf(4f / 3f) }
-                                val resolvedImageUrl by produceState<String?>(
-                                    initialValue = if (!VaultMediaManager.isVaultUrl(message.imageUrl)) message.imageUrl else VaultMediaManager.getCachedUrlOnly(message.imageUrl),
-                                    key1 = message.imageUrl
+                                val imageModel by produceState<Any?>(
+                                    initialValue = if (message.mediaEncrypted != true) (if (!VaultMediaManager.isVaultUrl(message.imageUrl)) message.imageUrl else VaultMediaManager.getCachedUrlOnly(message.imageUrl)) else null,
+                                    key1 = message.id,
+                                    key2 = message.imageUrl
                                 ) {
-                                    value = VaultMediaManager.resolveMediaUrl(message.imageUrl)
+                                    if (message.mediaEncrypted == true) {
+                                        value = com.example.kchat.crypto.EncryptedMediaManager.getOrDecryptImage(context, channelId, message)
+                                    } else {
+                                        value = VaultMediaManager.resolveMediaUrl(message.imageUrl)
+                                    }
                                 }
 
-                                if (resolvedImageUrl != null) {
+                                if (imageModel != null) {
                                     AsyncImage(
-                                        model = resolvedImageUrl,
+                                        model = imageModel,
                                         contentDescription = null,
                                         onSuccess = { state ->
                                             val intrinsicWidth = state.painter.intrinsicSize.width
@@ -2437,7 +2451,11 @@ fun ChatBubble(
                                     isInSelectionMode = isInSelectionMode,
                                     videoPlayerHelper = videoPlayerHelper,
                                     onBubbleClick = onClick,
-                                    onFullScreenClick = onFullScreenVideoClick
+                                    onFullScreenClick = { url ->
+                                        onFullScreenVideoClick(url, message)
+                                    },
+                                    message = message,
+                                    channelId = channelId
                                 )
                             } else if (!message.audioUrl.isNullOrBlank() && audioPlayerHelper != null) {
                                 AudioMessageBubble(
@@ -2446,7 +2464,9 @@ fun ChatBubble(
                                     isCurrentUser = isCurrentUser,
                                     isInSelectionMode = isInSelectionMode,
                                     audioPlayerHelper = audioPlayerHelper,
-                                    onBubbleClick = onClick
+                                    onBubbleClick = onClick,
+                                    message = message,
+                                    channelId = channelId
                                 )
                             } else if (!message.fileUrl.isNullOrBlank()) {
                                 FileMessageBubble(
@@ -2456,7 +2476,9 @@ fun ChatBubble(
                                     fileSizeBytes = message.fileSizeBytes ?: 0L,
                                     isCurrentUser = isCurrentUser,
                                     isInSelectionMode = isInSelectionMode,
-                                    onBubbleClick = onClick
+                                    onBubbleClick = onClick,
+                                    message = message,
+                                    channelId = channelId
                                 )
                             } else {
                                 Text(
@@ -2532,6 +2554,8 @@ fun ChatBubble(
     if (showFullImage && message.imageUrl != null) {
         FullScreenImage(
             imageUrl = message.imageUrl,
+            message = message,
+            channelId = channelId,
             onDismiss = { showFullImage = false }
         )
     }
@@ -2587,16 +2611,26 @@ fun CallButton(
 }
 
 @Composable
-fun FullScreenImage(imageUrl: String?, onDismiss: () -> Unit) {
+fun FullScreenImage(
+    imageUrl: String?,
+    message: Message? = null,
+    channelId: String? = null,
+    onDismiss: () -> Unit
+) {
     if (imageUrl == null) return
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val resolvedUrl by produceState<String?>(
-        initialValue = if (!VaultMediaManager.isVaultUrl(imageUrl)) imageUrl else VaultMediaManager.getCachedUrlOnly(imageUrl),
-        key1 = imageUrl
+    val imageModel by produceState<Any?>(
+        initialValue = if (message?.mediaEncrypted != true) (if (!VaultMediaManager.isVaultUrl(imageUrl)) imageUrl else VaultMediaManager.getCachedUrlOnly(imageUrl)) else null,
+        key1 = imageUrl,
+        key2 = message?.id
     ) {
-        value = VaultMediaManager.resolveMediaUrl(imageUrl)
+        if (message?.mediaEncrypted == true && channelId != null) {
+            value = com.example.kchat.crypto.EncryptedMediaManager.getOrDecryptImage(context, channelId, message)
+        } else {
+            value = VaultMediaManager.resolveMediaUrl(imageUrl)
+        }
     }
 
     Dialog(
@@ -2628,7 +2662,7 @@ fun FullScreenImage(imageUrl: String?, onDismiss: () -> Unit) {
                     .align(Alignment.Center)
                     .pointerInput(Unit) {
                         detectTransformGestures { _, pan, zoom, _ ->
-                            scale = (scale * zoom).coerceIn(1f, 5f)
+                            scale = (scale * zoom).coerceIn(1f, 4f)
                             if (scale > 1f) {
                                 offset += pan
                             } else {
@@ -2638,7 +2672,7 @@ fun FullScreenImage(imageUrl: String?, onDismiss: () -> Unit) {
                     }
             ) {
                 AsyncImage(
-                    model = resolvedUrl ?: imageUrl,
+                    model = imageModel ?: imageUrl,
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxSize()
