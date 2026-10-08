@@ -35,8 +35,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     @param:ApplicationContext val context: Context,
-    private val requestQueue: RequestQueue,
-    private val chatRepository: ChatRepository
+    private val requestQueue: RequestQueue
 ): ViewModel(){
     private val _messages= MutableStateFlow<List<Message>>(emptyList())
     val message = _messages.asStateFlow()
@@ -544,16 +543,7 @@ class ChatViewModel @Inject constructor(
 
     fun listenForMessages(channelID: String) {
         val currentUid = Firebase.auth.currentUser?.uid ?: return
-
-        // Instantly restore cached messages from in-memory repository to avoid empty-screen flicker
-        val cached = chatRepository.getCachedMessages(channelID)
-        if (!cached.isNullOrEmpty()) {
-            rawMessages = cached
-            refreshFilteredMessages()
-            _isMessagesLoaded.value = true
-        } else {
-            _isMessagesLoaded.value = false
-        }
+        _isMessagesLoaded.value = false
 
         deletedMessagesRef?.let { ref ->
             deletedMessagesListener?.let { listener ->
@@ -691,7 +681,6 @@ class ChatViewModel @Inject constructor(
                 }
 
                 rawMessages = list
-                chatRepository.putCachedMessages(channelID, list)
                 refreshFilteredMessages()
                 _isMessagesLoaded.value = true
             }
@@ -793,7 +782,6 @@ class ChatViewModel @Inject constructor(
         }
 
         rawMessages = combined
-        chatRepository.putCachedMessages(channelID, combined)
         refreshFilteredMessages()
         _isMessagesLoaded.value = true
     }
