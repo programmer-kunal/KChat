@@ -4,7 +4,7 @@
 
 # KChat
 
-### 🚀 From Chat to Context
+### 🚀 Make Messaging Smarter
 
 **Real-Time Communication × Context Intelligence × Modern Android**
 
