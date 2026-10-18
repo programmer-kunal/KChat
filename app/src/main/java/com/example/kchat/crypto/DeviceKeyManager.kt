@@ -68,27 +68,45 @@ object DeviceKeyManager {
         }
     }
 
+    private var cachedUid: String? = null
     private var cachedDeviceId: String? = null
     private var inMemoryIdentityKeyPair: KeyPair? = null
     private var inMemoryHpkePrivateKeyHandle: KeysetHandle? = null
 
+    private fun getCurrentUid(explicitUid: String? = null): String {
+        if (!explicitUid.isNullOrBlank()) return explicitUid
+        return try {
+            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "default"
+        } catch (e: Throwable) {
+            "default"
+        }
+    }
+
     /**
      * Gets or generates the persistent Device ID.
      */
-    fun getDeviceId(context: Context?): String {
-        cachedDeviceId?.let { return it }
+    fun getDeviceId(context: Context?, uid: String? = null): String {
+        val safeUid = getCurrentUid(uid)
+        if (cachedUid == safeUid && cachedDeviceId != null) {
+            return cachedDeviceId!!
+        }
         if (context == null) {
             val id = UUID.randomUUID().toString()
             cachedDeviceId = id
+            cachedUid = safeUid
             return id
         }
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        var id = prefs.getString(PREF_DEVICE_ID, null)
+        val prefKey = "kchat_device_id_$safeUid"
+        var id = prefs.getString(prefKey, null) ?: prefs.getString(PREF_DEVICE_ID, null)
         if (id.isNullOrBlank()) {
             id = UUID.randomUUID().toString()
-            prefs.edit().putString(PREF_DEVICE_ID, id).apply()
+            prefs.edit().putString(prefKey, id).apply()
+        } else {
+            prefs.edit().putString(prefKey, id).apply()
         }
         cachedDeviceId = id
+        cachedUid = safeUid
         return id
     }
 
@@ -103,17 +121,23 @@ object DeviceKeyManager {
      * Retrieves or generates the device identity keypair.
      * Uses Android Keystore on Android, with fallback to software keypair in JVM unit tests.
      */
-    fun getOrCreateIdentityKeyPair(context: Context?): KeyPair {
-        inMemoryIdentityKeyPair?.let { return it }
+    fun getOrCreateIdentityKeyPair(context: Context?, uid: String? = null): KeyPair {
+        val safeUid = getCurrentUid(uid)
+        if (cachedUid == safeUid && inMemoryIdentityKeyPair != null) {
+            return inMemoryIdentityKeyPair!!
+        }
 
         if (context != null) {
             try {
                 val ks = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
-                if (ks.containsAlias(IDENTITY_KEY_ALIAS)) {
-                    val entry = ks.getEntry(IDENTITY_KEY_ALIAS, null) as? KeyStore.PrivateKeyEntry
+                val alias = "kchat_identity_ec_$safeUid"
+                val targetAlias = if (ks.containsAlias(alias)) alias else if (ks.containsAlias(IDENTITY_KEY_ALIAS)) IDENTITY_KEY_ALIAS else alias
+                if (ks.containsAlias(targetAlias)) {
+                    val entry = ks.getEntry(targetAlias, null) as? KeyStore.PrivateKeyEntry
                     if (entry != null) {
                         val pair = KeyPair(entry.certificate.publicKey, entry.privateKey)
                         inMemoryIdentityKeyPair = pair
+                        cachedUid = safeUid
                         return pair
                     }
                 }
@@ -121,7 +145,7 @@ object DeviceKeyManager {
                 // Generate in Android Keystore
                 val kpg = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, ANDROID_KEYSTORE)
                 val parameterSpec = KeyGenParameterSpec.Builder(
-                    IDENTITY_KEY_ALIAS,
+                    alias,
                     KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
                 )
                     .setDigests(KeyProperties.DIGEST_SHA256)
@@ -130,6 +154,7 @@ object DeviceKeyManager {
                 kpg.initialize(parameterSpec)
                 val pair = kpg.generateKeyPair()
                 inMemoryIdentityKeyPair = pair
+                cachedUid = safeUid
                 return pair
             } catch (e: Exception) {
                 Log.w(TAG, "Android Keystore unavailable or failed, falling back to software keypair: ${e.message}")
@@ -139,19 +164,30 @@ object DeviceKeyManager {
         // Software fallback
         val pair = KeyManager.generateSoftwareIdentityKeyPair()
         inMemoryIdentityKeyPair = pair
+        cachedUid = safeUid
         return pair
     }
 
     /**
      * Retrieves or generates the device HPKE private keyset handle.
      */
-    fun getOrCreateHpkePrivateKeyHandle(context: Context?): KeysetHandle {
-        inMemoryHpkePrivateKeyHandle?.let { return it }
+    fun getOrCreateHpkePrivateKeyHandle(context: Context?, uid: String? = null): KeysetHandle {
+        val safeUid = getCurrentUid(uid)
+        if (cachedUid == safeUid && inMemoryHpkePrivateKeyHandle != null) {
+            return inMemoryHpkePrivateKeyHandle!!
+        }
 
         if (context != null) {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val encData = prefs.getString("hpke_private_keyset_enc", null)
-            val ivStr = prefs.getString("hpke_private_keyset_iv", null)
+            val encKey = "hpke_private_keyset_enc_$safeUid"
+            val ivKey = "hpke_private_keyset_iv_$safeUid"
+
+            var encData = prefs.getString(encKey, null)
+            var ivStr = prefs.getString(ivKey, null)
+            if (encData.isNullOrBlank() || ivStr.isNullOrBlank()) {
+                encData = prefs.getString("hpke_private_keyset_enc", null)
+                ivStr = prefs.getString("hpke_private_keyset_iv", null)
+            }
 
             if (!encData.isNullOrBlank() && !ivStr.isNullOrBlank()) {
                 try {
@@ -161,6 +197,7 @@ object DeviceKeyManager {
                     )
                     val handle = KeyManager.deserializeKeysetHandle(decryptedBytes)
                     inMemoryHpkePrivateKeyHandle = handle
+                    cachedUid = safeUid
                     return handle
                 } catch (e: Exception) {
                     Log.w(TAG, "Failed to decrypt stored HPKE keyset, regenerating: ${e.message}")
@@ -173,34 +210,36 @@ object DeviceKeyManager {
                 val serialized = KeyManager.serializeKeysetHandle(handle)
                 val (ciphertext, iv) = encryptWithMasterKey(serialized)
                 prefs.edit()
-                    .putString("hpke_private_keyset_enc", Base64.encodeToString(ciphertext, Base64.NO_WRAP))
-                    .putString("hpke_private_keyset_iv", Base64.encodeToString(iv, Base64.NO_WRAP))
+                    .putString(encKey, Base64.encodeToString(ciphertext, Base64.NO_WRAP))
+                    .putString(ivKey, Base64.encodeToString(iv, Base64.NO_WRAP))
                     .apply()
             } catch (e: Exception) {
                 Log.w(TAG, "Could not store encrypted HPKE keyset to Keystore: ${e.message}")
             }
             inMemoryHpkePrivateKeyHandle = handle
+            cachedUid = safeUid
             return handle
         }
 
         val handle = MediaEncryptor.generateHpkeKeysetHandle()
         inMemoryHpkePrivateKeyHandle = handle
+        cachedUid = safeUid
         return handle
     }
 
     /**
      * Gets public HPKE keyset handle for this device.
      */
-    fun getHpkePublicKeyHandle(context: Context?): KeysetHandle {
-        val privateHandle = getOrCreateHpkePrivateKeyHandle(context)
+    fun getHpkePublicKeyHandle(context: Context?, uid: String? = null): KeysetHandle {
+        val privateHandle = getOrCreateHpkePrivateKeyHandle(context, uid)
         return privateHandle.publicKeysetHandle
     }
 
     /**
      * Obtains the Base64 representation of this device's HPKE public keyset.
      */
-    fun getHpkePublicKeyBase64(context: Context?): String {
-        val pubHandle = getHpkePublicKeyHandle(context)
+    fun getHpkePublicKeyBase64(context: Context?, uid: String? = null): String {
+        val pubHandle = getHpkePublicKeyHandle(context, uid)
         val bytes = KeyManager.serializeKeysetHandle(pubHandle)
         return java.util.Base64.getEncoder().encodeToString(bytes)
     }
@@ -208,8 +247,8 @@ object DeviceKeyManager {
     /**
      * Obtains the Base64 representation of this device's identity public key.
      */
-    fun getIdentityPublicKeyBase64(context: Context?): String {
-        val pair = getOrCreateIdentityKeyPair(context)
+    fun getIdentityPublicKeyBase64(context: Context?, uid: String? = null): String {
+        val pair = getOrCreateIdentityKeyPair(context, uid)
         return java.util.Base64.getEncoder().encodeToString(pair.public.encoded)
     }
 
@@ -217,9 +256,9 @@ object DeviceKeyManager {
      * Signs this device's binding statement.
      */
     fun signMyDeviceBinding(context: Context?, uid: String): String {
-        val pair = getOrCreateIdentityKeyPair(context)
-        val deviceId = getDeviceId(context)
-        val hpkePubB64 = getHpkePublicKeyBase64(context)
+        val pair = getOrCreateIdentityKeyPair(context, uid)
+        val deviceId = getDeviceId(context, uid)
+        val hpkePubB64 = getHpkePublicKeyBase64(context, uid)
         val sigBytes = KeyManager.signDeviceBinding(uid, deviceId, hpkePubB64, pair.private)
         return java.util.Base64.getEncoder().encodeToString(sigBytes)
     }
@@ -383,5 +422,6 @@ object DeviceKeyManager {
         inMemoryIdentityKeyPair = null
         inMemoryHpkePrivateKeyHandle = null
         cachedDeviceId = null
+        cachedUid = null
     }
 }

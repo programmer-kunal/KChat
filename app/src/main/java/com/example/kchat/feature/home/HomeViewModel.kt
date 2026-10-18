@@ -5,26 +5,48 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.kchat.SupabaseStorageUtils
+import com.example.kchat.crypto.EncryptedMediaManager
+import com.example.kchat.data.cache.LocalDataCache
 import com.example.kchat.model.Message
 import com.example.kchat.model.MessagePreviewCalculator
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.database.*
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
-class HomeViewModel @Inject constructor() : ViewModel() {
+class HomeViewModel @Inject constructor(
+    @ApplicationContext val context: Context
+) : ViewModel() {
 
     companion object {
-        const val WORLD_CHAT_ID = "worldchat"
+        const val WORLD_CHAT_ID = "world_chat"
         const val WORLD_CHAT_NAME = "World Chat"
+
+        fun isWorldChat(id: String?, name: String?): Boolean {
+            if (id != null) {
+                val cleanId = id.trim().lowercase()
+                if (cleanId == "world_chat" || cleanId == "worldchat" || cleanId.contains("world_chat") || cleanId.contains("worldchat")) return true
+            }
+            if (name != null) {
+                val cleanName = name.trim().lowercase()
+                if (cleanName == "world chat" || cleanName == "world_chat" || cleanName == "worldchat") return true
+            }
+            return false
+        }
     }
 
     private val db = Firebase.database
+    private var saveHomeChannelsJob: Job? = null
 
     private val _channels = MutableStateFlow<List<HomeChannel>>(emptyList())
     val channels = _channels.asStateFlow()
@@ -54,54 +76,47 @@ class HomeViewModel @Inject constructor() : ViewModel() {
     private val channelMap = mutableMapOf<String, HomeChannel>()
 
     init {
-        ensureWorldChat()
+        val currentUid = Firebase.auth.currentUser?.uid
+        if (currentUid != null) {
+            viewModelScope.launch {
+                val cached = LocalDataCache.loadHomeChannels(currentUid).filter { !isWorldChat(it.id, it.name) }
+                if (cached.isNotEmpty() && _channels.value.isEmpty()) {
+                    cached.forEach { channelMap[it.id] = it }
+                    _channels.value = cached
+                }
+                LocalDataCache.saveHomeChannels(currentUid, cached)
+            }
+        }
         listenForDeletedChannels()
         listenForDeletedMessages()
         listenForChannelImages()
         listenForChannels()
+        try {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().unsubscribeFromTopic("group_world_chat")
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().unsubscribeFromTopic("group_worldchat")
+        } catch (e: Exception) {}
     }
 
     private fun emitSortedChannels() {
         val currentUid = Firebase.auth.currentUser?.uid
         val visibleChannels = channelMap.values.filter { channel ->
-            if (channel.id == WORLD_CHAT_ID) {
-                true
-            } else {
-                val isDeleted = _deletedChannelIds.value.contains(channel.id)
-                val isCreator = currentUid != null && channel.creatorUid == currentUid
-                val isMember = isMemberMap[channel.id] == true || isCreator
-                !isDeleted && isMember
+            if (isWorldChat(channel.id, channel.name)) return@filter false
+            val isDeleted = _deletedChannelIds.value.contains(channel.id)
+            val isCreator = currentUid != null && channel.creatorUid == currentUid
+            val isMember = isMemberMap[channel.id] == true || isCreator
+            !isDeleted && isMember
+        }
+        val sorted = visibleChannels.sortedWith(
+            compareByDescending { it.lastTime ?: 0L }
+        )
+        _channels.value = sorted
+        if (currentUid != null) {
+            saveHomeChannelsJob?.cancel()
+            saveHomeChannelsJob = viewModelScope.launch {
+                delay(500L)
+                LocalDataCache.saveHomeChannels(currentUid, sorted)
             }
         }
-        _channels.value = visibleChannels.sortedWith(
-            compareByDescending<HomeChannel> { it.id == WORLD_CHAT_ID }
-                .thenByDescending { it.lastTime ?: 0L }
-        )
-    }
-
-    /**
-     * Ensures the global World Chat group exists idempotently in Firebase Realtime Database
-     * and guarantees that the current user is added as a member.
-     */
-    private fun ensureWorldChat() {
-        val currentUid = Firebase.auth.currentUser?.uid ?: return
-        val worldChatChannelRef = db.getReference("channel").child(WORLD_CHAT_ID)
-        worldChatChannelRef.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                if (!snapshot.exists()) {
-                    worldChatChannelRef.setValue(WORLD_CHAT_NAME)
-                    db.getReference("channel_creator").child(WORLD_CHAT_ID).setValue(currentUid)
-                }
-                // Automatically add current user as member of World Chat
-                db.getReference("channels")
-                    .child(WORLD_CHAT_ID)
-                    .child("users")
-                    .child(currentUid)
-                    .setValue(true)
-            }
-
-            override fun onCancelled(error: DatabaseError) {}
-        })
     }
 
     private fun listenForDeletedChannels() {
@@ -133,9 +148,9 @@ class HomeViewModel @Inject constructor() : ViewModel() {
     private fun reconcileDeletedChannels(deletedSet: Set<String>) {
         val currentUid = Firebase.auth.currentUser?.uid ?: return
         for ((channelId, channel) in channelMap) {
-            val isDeleted = deletedSet.contains(channelId) && channelId != WORLD_CHAT_ID
+            val isDeleted = deletedSet.contains(channelId)
             val isCreator = channel.creatorUid == currentUid
-            val isMember = (isMemberMap[channelId] == true) || (channelId == WORLD_CHAT_ID)
+            val isMember = isMemberMap[channelId] == true
 
             if (isDeleted) {
                 detachMessageListener(channelId)
@@ -269,6 +284,7 @@ class HomeViewModel @Inject constructor() : ViewModel() {
                 snapshot.children.forEach { data ->
                     val channelId = data.key ?: return@forEach
                     val channelName = data.getValue(String::class.java) ?: ""
+                    if (isWorldChat(channelId, channelName)) return@forEach
 
                     // Fetch creator UID from channel_creator node
                     db.getReference("channel_creator").child(channelId)
@@ -295,6 +311,7 @@ class HomeViewModel @Inject constructor() : ViewModel() {
         channelName: String,
         creatorUid: String?
     ) {
+        if (isWorldChat(channelId, channelName)) return
         val imgUrl = channelImagesMap[channelId]
         val existing = channelMap[channelId]
         if (existing == null) {
@@ -325,7 +342,6 @@ class HomeViewModel @Inject constructor() : ViewModel() {
         val currentUid = Firebase.auth.currentUser?.uid ?: return
 
         if (channelId == WORLD_CHAT_ID) {
-            attachMessageListenerIfActive(channelId, channelName, creatorUid)
             return
         }
 
@@ -393,11 +409,16 @@ class HomeViewModel @Inject constructor() : ViewModel() {
         channelName: String,
         creatorUid: String?
     ) {
+        if (channelId == WORLD_CHAT_ID) return
+        val topic = "group_$channelId"
+        com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic(topic)
         if (messageListeners.containsKey(channelId)) return
         listenForLastMessage(channelId, channelName, creatorUid)
     }
 
     private fun detachMessageListener(channelId: String) {
+        val topic = "group_$channelId"
+        com.google.firebase.messaging.FirebaseMessaging.getInstance().unsubscribeFromTopic(topic)
         val listener = messageListeners.remove(channelId)
         if (listener != null) {
             db.getReference("messages").child(channelId).removeEventListener(listener)
@@ -416,7 +437,7 @@ class HomeViewModel @Inject constructor() : ViewModel() {
                 val deletedIds = deletedMessagesMap[channelId] ?: emptySet()
                 val messages = snapshot.children.mapNotNull { child ->
                     val msg = child.getValue(Message::class.java) ?: return@mapNotNull null
-                    if (channelId != WORLD_CHAT_ID && currentUid.isNotEmpty() && msg.senderId.isNotEmpty() && msg.senderId != currentUid && msg.deliveredBy?.get(currentUid) != true) {
+                    if (currentUid.isNotEmpty() && msg.senderId.isNotEmpty() && msg.senderId != currentUid && msg.deliveredBy?.get(currentUid) != true) {
                         child.ref.child("deliveredBy").child(currentUid).setValue(true)
                     }
                     val key = child.key
@@ -435,32 +456,44 @@ class HomeViewModel @Inject constructor() : ViewModel() {
                     }
                 }
 
-                cachedChannelMessages[channelId] = messages
-                val updatedDeletedIds = deletedMessagesMap[channelId] ?: emptySet()
+                viewModelScope.launch(Dispatchers.IO) {
+                    val decryptedMessages = messages.map { msg ->
+                        if (msg.textEncrypted == true) {
+                            EncryptedMediaManager.decryptTextMessage(context, channelId, msg)
+                        } else {
+                            msg
+                        }
+                    }
 
-                val summary = MessagePreviewCalculator.calculate(
-                    messages = messages,
-                    currentUserId = currentUid,
-                    deletedMessageIds = updatedDeletedIds,
-                    photoLabel = "📷 Photo"
-                )
+                    cachedChannelMessages[channelId] = decryptedMessages
+                    val updatedDeletedIds = deletedMessagesMap[channelId] ?: emptySet()
 
-                val currentCreatorUid = channelMap[channelId]?.creatorUid ?: creatorUid
-                val currentName = channelMap[channelId]?.name ?: channelName
+                    val summary = MessagePreviewCalculator.calculate(
+                        messages = decryptedMessages,
+                        currentUserId = currentUid,
+                        deletedMessageIds = updatedDeletedIds,
+                        photoLabel = "📷 Photo"
+                    )
 
-                val updatedChannel = HomeChannel(
-                    id = channelId,
-                    name = currentName,
-                    lastMessage = summary.lastMessage,
-                    lastTime = summary.lastTime,
-                    lastSenderName = summary.lastSenderName,
-                    unreadCount = summary.unreadCount,
-                    creatorUid = currentCreatorUid,
-                    imageUrl = channelImagesMap[channelId] ?: channelMap[channelId]?.imageUrl
-                )
+                    val currentCreatorUid = channelMap[channelId]?.creatorUid ?: creatorUid
+                    val currentName = channelMap[channelId]?.name ?: channelName
 
-                channelMap[channelId] = updatedChannel
-                emitSortedChannels()
+                    val updatedChannel = HomeChannel(
+                        id = channelId,
+                        name = currentName,
+                        lastMessage = summary.lastMessage,
+                        lastTime = summary.lastTime,
+                        lastSenderName = summary.lastSenderName,
+                        unreadCount = summary.unreadCount,
+                        creatorUid = currentCreatorUid,
+                        imageUrl = channelImagesMap[channelId] ?: channelMap[channelId]?.imageUrl
+                    )
+
+                    withContext(Dispatchers.Main) {
+                        channelMap[channelId] = updatedChannel
+                        emitSortedChannels()
+                    }
+                }
             }
 
             override fun onCancelled(error: DatabaseError) {
@@ -475,6 +508,12 @@ class HomeViewModel @Inject constructor() : ViewModel() {
     /**
      * Creates a custom group with the creator and selected friends only.
      * Optionally uploads and sets a group photo if provided.
+     *
+     * Note: Firebase Realtime Database security rules evaluate `root.child('channel_creator/$channelId')`
+     * against the pre-transaction state. Therefore, `/channel/$key` and `/channel_creator/$key` must be
+     * committed first so that `root.child('channel_creator/' + $channelId).val() == auth.uid` becomes
+     * true in the database. Once committed, the secondary write adding member friends to
+     * `/channels/$key/users/$friendUid` and `/channels/$key/epochId` succeeds without Permission Denied.
      */
     fun createGroup(
         name: String,
@@ -485,32 +524,57 @@ class HomeViewModel @Inject constructor() : ViewModel() {
         val currentUser = Firebase.auth.currentUser ?: return
         val key = db.getReference("channel").push().key ?: return
 
-        val updates = mutableMapOf<String, Any>()
-        updates["/channel/$key"] = name
-        updates["/channel_creator/$key"] = currentUser.uid
-        updates["/channels/$key/users/${currentUser.uid}"] = true
-        updates["/channels/$key/epochId"] = 1
-        memberFriendUids.forEach { friendUid ->
-            if (friendUid.isNotBlank()) {
-                updates["/channels/$key/users/$friendUid"] = true
+        fun addMembersAndEpoch() {
+            val memberUpdates = mutableMapOf<String, Any>()
+            memberUpdates["/channels/$key/epochId"] = 1
+            memberFriendUids.forEach { friendUid ->
+                if (friendUid.isNotBlank() && friendUid != currentUser.uid) {
+                    memberUpdates["/channels/$key/users/$friendUid"] = true
+                }
+            }
+            if (memberUpdates.isNotEmpty()) {
+                db.reference.updateChildren(memberUpdates) { secError, _ ->
+                    if (secError != null) {
+                        android.util.Log.e("HomeViewModel", "Failed to add group members/epochId: ${secError.message}")
+                    } else {
+                        android.util.Log.d("HomeViewModel", "Group members and epochId added successfully for channel $key")
+                    }
+                }
+            }
+        }
+
+        fun writeBaseChannel(publicUrl: String?) {
+            val baseUpdates = mutableMapOf<String, Any>()
+            baseUpdates["/channel/$key"] = name
+            baseUpdates["/channel_creator/$key"] = currentUser.uid
+            baseUpdates["/channels/$key/users/${currentUser.uid}"] = true
+
+            db.reference.updateChildren(baseUpdates) { error, _ ->
+                if (error == null) {
+                    android.util.Log.d("HomeViewModel", "Base channel $key created successfully")
+                    if (!publicUrl.isNullOrEmpty()) {
+                        db.reference.child("channel_image").child(key).setValue(publicUrl)
+                    }
+                    addMembersAndEpoch()
+                } else {
+                    android.util.Log.e("HomeViewModel", "Failed to create channel: ${error.message}")
+                }
             }
         }
 
         if (imageUri != null && context != null) {
             viewModelScope.launch {
+                var uploadedUrl: String? = null
                 try {
                     val storageUtils = SupabaseStorageUtils(context)
-                    val publicUrl = storageUtils.uploadImage(imageUri)
-                    if (!publicUrl.isNullOrEmpty()) {
-                        updates["/channel_image/$key"] = publicUrl
-                    }
+                    uploadedUrl = storageUtils.uploadImage(imageUri)
                 } catch (e: Exception) {
-                    // Gracefully proceed
+                    // Gracefully proceed without photo
                 }
-                db.reference.updateChildren(updates)
+                writeBaseChannel(uploadedUrl)
             }
         } else {
-            db.reference.updateChildren(updates)
+            writeBaseChannel(null)
         }
     }
 

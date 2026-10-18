@@ -77,7 +77,14 @@ class VideoPlayerHelper(
                         .setUsage(AudioAttributes.USAGE_MEDIA)
                         .build()
                 )
-                setDataSource(url)
+                if (url.startsWith("/")) {
+                    val file = java.io.File(url)
+                    java.io.FileInputStream(file).use { fis ->
+                        setDataSource(fis.fd)
+                    }
+                } else {
+                    setDataSource(url)
+                }
                 attachedSurface?.let { surf ->
                     if (surf.isValid) {
                         setSurface(surf)

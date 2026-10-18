@@ -87,16 +87,15 @@ fun KChatExtensionScreen(
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_kchat_extension),
-                            contentDescription = null,
-                            tint = if (isDark) KChatAccent else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                        Image(
+                            painter = painterResource(id = R.drawable.logo),
+                            contentDescription = "K Chat Logo",
+                            modifier = Modifier.size(32.dp)
                         )
                         Text(
-                            text = "KChat Extension",
+                            text = "K Chat Extension",
                             color = if (isDark) Color.White else MaterialTheme.colorScheme.onBackground,
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,

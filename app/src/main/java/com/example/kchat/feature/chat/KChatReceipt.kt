@@ -26,7 +26,9 @@ data class MemberReceiptInfo(
     val email: String,
     val profileImage: String?,
     val isDelivered: Boolean,
-    val isRead: Boolean
+    val isRead: Boolean,
+    val readTimestamp: Long? = null,
+    val deliveredTimestamp: Long? = null
 )
 
 data class MessageInfoData(
@@ -172,13 +174,17 @@ object MessageReceiptHelper {
                 ?: ""
             val isRead = if (rUid.isNotEmpty()) message.readBy?.get(rUid) == true else message.readBy?.any { (uid, read) -> uid != currentUid && uid != sender && read } == true
             val isDelivered = isRead || (if (rUid.isNotEmpty()) message.deliveredBy?.get(rUid) == true else message.deliveredBy?.any { (uid, del) -> uid != currentUid && uid != sender && del } == true)
+            val readTime = message.readAt?.get(rUid)
+            val deliveredTime = message.deliveredAt?.get(rUid)
             val recipientInfo = MemberReceiptInfo(
                 uid = rUid,
                 name = directRecipientUser?.name ?: "Recipient",
                 email = directRecipientUser?.email ?: "",
                 profileImage = directRecipientUser?.profileImage,
                 isDelivered = isDelivered,
-                isRead = isRead
+                isRead = isRead,
+                readTimestamp = readTime,
+                deliveredTimestamp = deliveredTime
             )
             return MessageInfoData(
                 messageId = message.id,
@@ -208,13 +214,17 @@ object MessageReceiptHelper {
             val memberInfos = applicableUsers.map { user ->
                 val isRead = message.readBy?.get(user.uid) == true
                 val isDelivered = isRead || message.deliveredBy?.get(user.uid) == true
+                val readTime = message.readAt?.get(user.uid)
+                val deliveredTime = message.deliveredAt?.get(user.uid)
                 MemberReceiptInfo(
                     uid = user.uid,
                     name = user.name.ifBlank { user.email.ifBlank { "Member" } },
                     email = user.email,
                     profileImage = user.profileImage,
                     isDelivered = isDelivered,
-                    isRead = isRead
+                    isRead = isRead,
+                    readTimestamp = readTime,
+                    deliveredTimestamp = deliveredTime
                 )
             }
             return MessageInfoData(

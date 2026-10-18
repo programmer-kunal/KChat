@@ -9,6 +9,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -157,18 +158,55 @@ fun DirectChatScreen(
                     onUserSelectedForSelection(null)
                 }
         ) {
+            val filteredUsers = remember(users, currentUid, hiddenChats, friendIds, searchQuery) {
+                users.filter {
+                    val chatId = if (currentUid < it.uid) "${currentUid}_${it.uid}" else "${it.uid}_$currentUid"
+                    val isHidden = hiddenChats[chatId] ?: false
+                    it.uid in friendIds && !isHidden && it.name.contains(searchQuery, ignoreCase = true)
+                }
+            }
+            val listState = rememberLazyListState()
+            var userHasScrolled by remember { mutableStateOf(false) }
+
+            // Track when user actively scrolls the list
+            LaunchedEffect(listState.isScrollInProgress) {
+                if (listState.isScrollInProgress) {
+                    userHasScrolled = true
+                }
+            }
+
+            // Reset when screen resumes (e.g. returning to Home from Chat)
+            val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+            DisposableEffect(lifecycleOwner) {
+                val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                    if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                        userHasScrolled = false
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose {
+                    lifecycleOwner.lifecycle.removeObserver(observer)
+                }
+            }
+
+            // Ensure top conversation (index 0, offset 0) is displayed when entering or initial loading,
+            // while preserving user's position completely if they have scrolled.
+            LaunchedEffect(userHasScrolled, filteredUsers.firstOrNull()?.uid) {
+                if (!userHasScrolled && filteredUsers.isNotEmpty() && (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0)) {
+                    listState.scrollToItem(0, 0)
+                }
+            }
+
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(bottom = innerPadding.calculateBottomPadding())
             ) {
 
                 items(
-                    users.filter {
-                        val chatId = if (currentUid < it.uid) "${currentUid}_${it.uid}" else "${it.uid}_$currentUid"
-                        val isHidden = hiddenChats[chatId] ?: false
-                        it.uid in friendIds && !isHidden && it.name.contains(searchQuery, ignoreCase = true)
-                    }
+                    items = filteredUsers,
+                    key = { it.uid }
                 ) { user ->
 
                     val chatId = if (currentUid < user.uid) "${currentUid}_${user.uid}" else "${user.uid}_$currentUid"
@@ -224,20 +262,6 @@ fun DirectChatScreen(
                                             "${currentUid}_${user.uid}"
                                         else
                                             "${user.uid}_$currentUid"
-
-                                    db.reference.child("messages")
-                                        .child(chatId)
-                                        .get()
-                                        .addOnSuccessListener { snapshot ->
-                                            snapshot.children.forEach { msg ->
-                                                msg.ref.child("deliveredBy")
-                                                    .child(currentUid)
-                                                    .setValue(true)
-                                                msg.ref.child("readBy")
-                                                    .child(currentUid)
-                                                    .setValue(true)
-                                            }
-                                        }
 
                                     navController.navigate("chat/$chatId&${user.name}")
                                 }

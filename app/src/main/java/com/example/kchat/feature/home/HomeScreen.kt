@@ -7,9 +7,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -61,6 +63,10 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
 import com.example.kchat.feature.chat.DirectChatItem
+import com.example.kchat.data.cache.LocalDataCache
+import com.example.kchat.feature.chat.ChatViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.border
@@ -68,7 +74,6 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import com.example.kchat.feature.chat.ConversationMuteManager
 import com.example.kchat.feature.chat.DateTimeUtils
-import com.example.kchat.feature.chat.WorldChatInfoDialog
 import androidx.compose.foundation.interaction.MutableInteractionSource
 
 
@@ -81,31 +86,19 @@ fun HomeScreen(navController: NavController) {
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
-        Firebase.auth.currentUser?.let { user ->
-            val app = context.applicationContext as? KChat
-            val uid = user.uid
-            val userEmail = user.email ?: "user_${uid.take(5)}@kchat.com"
-            Firebase.database.getReference("users").child(uid).child("name")
-                .get().addOnSuccessListener { snapshot ->
-                    val dbName = snapshot.getValue(String::class.java)
-                    val finalName = if (!dbName.isNullOrBlank()) dbName else (user.displayName ?: userEmail)
-                    android.util.Log.d("NotificationDebug", "HomeScreen LaunchedEffect -> Initializing Zego with name: $finalName")
-                    app?.initZegoService(
-                        appID = AppID,
-                        appSign = AppSign,
-                        userID = userEmail,
-                        userName = finalName
-                    )
-                }.addOnFailureListener {
-                    val fallbackName = user.displayName ?: userEmail
-                    android.util.Log.w("NotificationDebug", "HomeScreen LaunchedEffect -> Failed to fetch name, using fallback: $fallbackName")
-                    app?.initZegoService(
-                        appID = AppID,
-                        appSign = AppSign,
-                        userID = userEmail,
-                        userName = fallbackName
-                    )
-                }
+        if (!KChat.isZegoConnected && !KChat.isZegoInitializing) {
+            Firebase.auth.currentUser?.let { user ->
+                val app = context.applicationContext as? KChat
+                val uid = user.uid
+                val userEmail = user.email ?: "user_${uid.take(5)}@kchat.com"
+                val finalName = user.displayName?.takeIf { it.isNotBlank() } ?: userEmail
+                app?.initZegoService(
+                    appID = AppID,
+                    appSign = AppSign,
+                    userID = userEmail,
+                    userName = finalName
+                )
+            }
         }
     }
 
@@ -128,7 +121,6 @@ fun HomeScreen(navController: NavController) {
     var showPhotoPickerDialog by remember { mutableStateOf(false) }
     var selectedUserForSelection by remember { mutableStateOf<DirectChatItem?>(null) }
     var selectedGroupForSelection by remember { mutableStateOf<HomeChannel?>(null) }
-    var showWorldChatInfoDialog by remember { mutableStateOf(false) }
     var selectedCustomGroupForInfo by remember { mutableStateOf<HomeChannel?>(null) }
     var showThemeDialog by remember { mutableStateOf(false) }
 
@@ -244,24 +236,20 @@ fun HomeScreen(navController: NavController) {
                     ) {
                         Icon(
                             painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_kchat_extension),
-                            contentDescription = "KChat Extension",
+                            contentDescription = "K Chat Extension",
                             tint = Color(0xFF38BDF8),
                             modifier = Modifier.size(24.dp)
                         )
                     }
 
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(colorResource(id = R.color.light_blue))
-                            .clickable { addChannel.value = true }
+                    FloatingActionButton(
+                        onClick = { addChannel.value = true },
+                        containerColor = colorResource(id = R.color.light_blue),
+                        contentColor = Color.White,
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = FloatingActionButtonDefaults.elevation(6.dp)
                     ) {
-                        Text(
-                            text = "Create Group",
-                            modifier = Modifier.padding(16.dp),
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Icon(Icons.Default.Add, contentDescription = "Create Group")
                     }
                 }
             }
@@ -387,14 +375,13 @@ fun HomeScreen(navController: NavController) {
                                                 // 1. Remove mutual friendship
                                                 db.reference.child("friends").child(uid).child(item.uid).removeValue()
                                                 db.reference.child("friends").child(item.uid).child(uid).removeValue()
-                                                // 2. Permanently delete direct conversation messages
-                                                db.reference.child("messages").child(chatId).removeValue()
-                                                // 3. Clear soft deleted message tracking for both users
-                                                db.reference.child("deleted_messages").child(uid).child(chatId).removeValue()
-                                                db.reference.child("deleted_messages").child(item.uid).child(chatId).removeValue()
-                                                // 4. Clear chat hidden tracking for both users
+                                                // 2. Clear local disk cache and memory cache for this conversation
+                                                CoroutineScope(Dispatchers.IO).launch {
+                                                    LocalDataCache.deleteMessages(uid, chatId)
+                                                }
+                                                ChatViewModel.clearMemoryCache(chatId)
+                                                // 3. Clear chat hidden tracking for current user
                                                 db.reference.child("chat_hidden").child(uid).child(chatId).removeValue()
-                                                db.reference.child("chat_hidden").child(item.uid).child(chatId).removeValue()
                                             }
                                         }
                                         selectedUserForSelection = null
@@ -414,7 +401,6 @@ fun HomeScreen(navController: NavController) {
                 var showGroupDropdown by remember { mutableStateOf(false) }
                 var showGroupDeleteConfirm by remember { mutableStateOf(false) }
                 val isOwner = selectedGroupForSelection?.creatorUid == currentUid
-                val isWorldChat = selectedGroupForSelection?.id == HomeViewModel.WORLD_CHAT_ID
 
                 Row(
                     modifier = Modifier
@@ -480,7 +466,7 @@ fun HomeScreen(navController: NavController) {
                                     }
                                 )
 
-                                if (!isWorldChat && isOwner) {
+                                if (isOwner) {
                                     DropdownMenuItem(
                                         text = { Text("Delete Group", color = MaterialTheme.colorScheme.error) },
                                         onClick = {
@@ -553,12 +539,20 @@ fun HomeScreen(navController: NavController) {
                     }
 
 
-                    Text(
-                        text = "KChat",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(id = R.drawable.logo),
+                            contentDescription = "K Chat Logo",
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Chat",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
 
                     var showHomeMenu by remember { mutableStateOf(false) }
                     Box {
@@ -650,7 +644,7 @@ fun HomeScreen(navController: NavController) {
             Spacer(modifier = Modifier.height(12.dp))
 
             // 🔹 Search
-            val isSearchDark = MaterialTheme.colorScheme.background == Color(0xFF162542)
+            val isSearchDark = MaterialTheme.colorScheme.background == com.example.kchat.ui.theme.KChatDarkBackground
             TextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -698,13 +692,46 @@ fun HomeScreen(navController: NavController) {
                             selectedGroupForSelection = null
                         }
                 ) {
+                    val filteredChannels = remember(channels.value, searchQuery, deletedChannelIds.value) {
+                        channels.value.filter {
+                            it.name.contains(searchQuery, ignoreCase = true) && it.id !in deletedChannelIds.value && !HomeViewModel.isWorldChat(it.id, it.name)
+                        }
+                    }
+                    val groupsListState = rememberLazyListState()
+                    var groupsUserHasScrolled by remember { mutableStateOf(false) }
+
+                    LaunchedEffect(groupsListState.isScrollInProgress) {
+                        if (groupsListState.isScrollInProgress) {
+                            groupsUserHasScrolled = true
+                        }
+                    }
+
+                    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+                    DisposableEffect(lifecycleOwner) {
+                        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                                groupsUserHasScrolled = false
+                            }
+                        }
+                        lifecycleOwner.lifecycle.addObserver(observer)
+                        onDispose {
+                            lifecycleOwner.lifecycle.removeObserver(observer)
+                        }
+                    }
+
+                    LaunchedEffect(groupsUserHasScrolled, filteredChannels.firstOrNull()?.id) {
+                        if (!groupsUserHasScrolled && filteredChannels.isNotEmpty() && (groupsListState.firstVisibleItemIndex != 0 || groupsListState.firstVisibleItemScrollOffset != 0)) {
+                            groupsListState.scrollToItem(0, 0)
+                        }
+                    }
+
                     LazyColumn(
+                        state = groupsListState,
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(
-                            channels.value.filter {
-                                it.name.contains(searchQuery, ignoreCase = true) && it.id !in deletedChannelIds.value
-                            }
+                            items = filteredChannels,
+                            key = { it.id }
                         ) { channel ->
                             val isSelected = selectedGroupForSelection?.id == channel.id
                             val groupSubtitle = channel.lastMessage?.let {
@@ -740,9 +767,7 @@ fun HomeScreen(navController: NavController) {
                                                 selectedGroupForSelection = channel
                                             }
                                         } else {
-                                            if (channel.id == HomeViewModel.WORLD_CHAT_ID) {
-                                                showWorldChatInfoDialog = true
-                                            } else if (!channel.id.startsWith("self_chat_")) {
+                                            if (!channel.id.startsWith("self_chat_")) {
                                                 selectedCustomGroupForInfo = channel
                                             }
                                         }
@@ -795,12 +820,11 @@ fun HomeScreen(navController: NavController) {
     }
 
     if (addChannel.value) {
-        ModalBottomSheet(
+        androidx.compose.ui.window.Dialog(
             onDismissRequest = { addChannel.value = false },
-            sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.surface,
-            properties = ModalBottomSheetProperties(
-                shouldDismissOnBackPress = false
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
             )
         ) {
             CreateGroupDialog(
@@ -873,72 +897,6 @@ fun HomeScreen(navController: NavController) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 13.sp
                         )
-                    }
-
-                    var showProfileDropdown by remember { mutableStateOf(false) }
-                    Box {
-                        IconButton(onClick = { showProfileDropdown = true }) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "Profile Options Menu",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = showProfileDropdown,
-                            onDismissRequest = { showProfileDropdown = false },
-                            modifier = Modifier.background(MaterialTheme.colorScheme.surface)
-                        ) {
-                            DropdownMenuItem(
-                                leadingIcon = {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.ic_theme),
-                                        contentDescription = "Change Theme",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                },
-                                text = { Text("Change Theme", color = MaterialTheme.colorScheme.onSurface) },
-                                onClick = {
-                                    showProfileDropdown = false
-                                    showThemeDialog = true
-                                }
-                            )
-                            DropdownMenuItem(
-                                leadingIcon = {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.ic_saved_messages),
-                                        contentDescription = "Saved Messages",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                },
-                                text = { Text("Saved Messages", color = MaterialTheme.colorScheme.onSurface) },
-                                onClick = {
-                                    showProfileDropdown = false
-                                    val currentUid = Firebase.auth.currentUser?.uid
-                                    if (!currentUid.isNullOrEmpty()) {
-                                        navController.navigate("chat/self_chat_$currentUid&Saved Messages")
-                                    }
-                                }
-                            )
-                            DropdownMenuItem(
-                                leadingIcon = {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.ic_logout),
-                                        contentDescription = "Logout",
-                                        tint = Color.Red
-                                    )
-                                },
-                                text = { Text("Logout", color = Color.Red) },
-                                onClick = {
-                                    showProfileDropdown = false
-                                    showProfileOptions = false
-                                    Firebase.auth.signOut()
-                                    navController.navigate("login") {
-                                        popUpTo("home") { inclusive = true }
-                                    }
-                                }
-                            )
-                        }
                     }
                 }
 
@@ -1183,11 +1141,6 @@ fun HomeScreen(navController: NavController) {
         )
     }
 
-    if (showWorldChatInfoDialog) {
-        WorldChatInfoDialog(
-            onDismissRequest = { showWorldChatInfoDialog = false }
-        )
-    }
 
     if (selectedCustomGroupForInfo != null) {
         CustomGroupInfoDialog(
@@ -1288,7 +1241,6 @@ fun ChannelItem(
         ) {
 
             val effectiveImageUrl = channel.imageUrl ?: imageUrl
-            val isWorldChat = channel.id == HomeViewModel.WORLD_CHAT_ID
             val isSelfChat = channel.id.startsWith("self_chat_")
 
             // 🔹 Group Avatar
@@ -1306,16 +1258,7 @@ fun ChannelItem(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                if (isWorldChat) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_world_chat),
-                        contentDescription = "World Chat",
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape),
-                        contentScale = ContentScale.Crop
-                    )
-                } else if (isSelfChat) {
+                if (isSelfChat) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_saved_messages),
                         contentDescription = "Saved Messages",
@@ -1425,10 +1368,10 @@ fun ChannelItem(
                 trailingContent()
             }
 
-            // 🔹 Call Buttons (Hidden for World Chat)
-            val showCalls = shouldShowCallButtons && (channel.id != HomeViewModel.WORLD_CHAT_ID)
+            // 🔹 Call Buttons
+            val showCalls = shouldShowCallButtons
             if (showCalls) {
-                val isDirect = !channel.id.startsWith("-") && channel.id != HomeViewModel.WORLD_CHAT_ID && channel.id.contains("_")
+                val isDirect = channel.id.contains("_") && channel.id.split("_").size == 2 && !channel.id.startsWith("-")
                 val callId = if (isDirect) null else "call_group_${channel.id.replace("-", "_")}"
                 Spacer(modifier = Modifier.width(4.dp))
                 Row(

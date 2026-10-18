@@ -1,5 +1,7 @@
 package com.example.kchat.model
+import androidx.compose.runtime.Immutable
 
+@Immutable
 data class Message(
     val id: String = "",
     val senderId: String = "",
@@ -11,6 +13,8 @@ data class Message(
     val profileImageUrl: String? = null,
     val readBy: Map<String, Boolean>? = null,
     val deliveredBy: Map<String, Boolean>? = null,
+    val readAt: Map<String, Long>? = null,
+    val deliveredAt: Map<String, Long>? = null,
     val replyToMessageId: String? = null,
     val replyToSenderName: String? = null,
     val replyToMessageText: String? = null,
@@ -33,5 +37,8 @@ data class Message(
     val mediaVersion: Int? = null,
     val encryptedMediaKeys: Map<String, String>? = null,
     val groupEpochId: Int? = null,
-    val senderKeyIndex: Int? = null
+    val senderKeyIndex: Int? = null,
+    val textEncrypted: Boolean? = null,
+    val cipherText: String? = null,
+    val encryptedMetadata: String? = null
 )

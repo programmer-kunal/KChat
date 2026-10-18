@@ -11,8 +11,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -153,26 +155,32 @@ fun AttachmentBottomSheet(
 
                             // 2x2 Feature Grid - Row 1
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(IntrinsicSize.Min),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 AttachmentOptionCard(
                                     title = "Images",
                                     subtitle = "Send photos and images",
                                     icon = Icons.Default.Image,
-                                    statusBadge = "Ready",
+                                    statusBadge = "",
                                     isActive = true,
                                     onClick = { currentView = AttachmentView.IMAGES },
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
                                 )
                                 AttachmentOptionCard(
                                     title = "Audio",
                                     subtitle = "Send audio and voice messages",
                                     icon = Icons.Default.Mic,
-                                    statusBadge = "Ready",
+                                    statusBadge = "",
                                     isActive = true,
                                     onClick = onAudioClick,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
                                 )
                             }
 
@@ -180,26 +188,32 @@ fun AttachmentBottomSheet(
 
                             // 2x2 Feature Grid - Row 2
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(IntrinsicSize.Min),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 AttachmentOptionCard(
                                     title = "Video",
                                     subtitle = "Send videos",
                                     icon = Icons.Default.Videocam,
-                                    statusBadge = "Ready",
+                                    statusBadge = "",
                                     isActive = true,
                                     onClick = { currentView = AttachmentView.VIDEOS },
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
                                 )
                                 AttachmentOptionCard(
                                     title = "Documents",
                                     subtitle = "Send files and documents",
                                     icon = Icons.Default.Description,
-                                    statusBadge = "Ready",
+                                    statusBadge = "",
                                     isActive = true,
                                     onClick = onDocumentClick,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
                                 )
                             }
                         }
@@ -258,26 +272,32 @@ fun AttachmentBottomSheet(
 
                             // Camera & Gallery options
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(IntrinsicSize.Min),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 AttachmentOptionCard(
                                     title = "Camera",
                                     subtitle = "Take a new photo",
                                     icon = Icons.Default.CameraAlt,
-                                    statusBadge = "Capture",
+                                    statusBadge = "",
                                     isActive = true,
                                     onClick = onCameraClick,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
                                 )
                                 AttachmentOptionCard(
                                     title = "Gallery",
                                     subtitle = "Select from device",
                                     icon = Icons.Default.PhotoLibrary,
-                                    statusBadge = "Browse",
+                                    statusBadge = "",
                                     isActive = true,
                                     onClick = onGalleryClick,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
                                 )
                             }
                         }
@@ -336,26 +356,32 @@ fun AttachmentBottomSheet(
 
                             // Record Video & Gallery options
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(IntrinsicSize.Min),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 AttachmentOptionCard(
                                     title = "Record Video",
                                     subtitle = "Record a new video",
                                     icon = Icons.Default.Videocam,
-                                    statusBadge = "Record",
+                                    statusBadge = "",
                                     isActive = true,
                                     onClick = onVideoCameraClick,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
                                 )
                                 AttachmentOptionCard(
                                     title = "Gallery",
                                     subtitle = "Select from device",
                                     icon = Icons.Default.PhotoLibrary,
-                                    statusBadge = "Browse",
+                                    statusBadge = "",
                                     isActive = true,
                                     onClick = onVideoGalleryClick,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
                                 )
                             }
                         }
@@ -424,21 +450,23 @@ private fun AttachmentOptionCard(
                 }
 
                 // Status Badge ("Ready", "Soon", "Capture", "Browse")
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(
-                            if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
+                if (statusBadge.isNotBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(
+                                if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
+                            )
+                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = statusBadge,
+                            color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
-                        .padding(horizontal = 7.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = statusBadge,
-                        color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    }
                 }
             }
 
@@ -458,6 +486,7 @@ private fun AttachmentOptionCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
                 lineHeight = 15.sp,
+                minLines = 2,
                 maxLines = 2
             )
         }

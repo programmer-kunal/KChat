@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.android.volley.toolbox.StringRequest
+import com.example.kchat.data.cache.LocalDataCache
 import com.example.kchat.model.Message
 import com.example.kchat.model.User
 import com.google.firebase.Firebase
@@ -26,13 +27,18 @@ import com.android.volley.toolbox.Volley
 import com.example.kchat.R
 import com.example.kchat.SupabaseStorageUtils
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import com.example.kchat.feature.home.HomeViewModel
 import android.widget.Toast
 import com.example.kchat.crypto.EncryptedMediaManager
 import java.io.File
 import java.util.UUID
+import androidx.collection.LruCache
 import javax.inject.Inject
 @HiltViewModel
 class ChatViewModel @Inject constructor(
@@ -67,8 +73,23 @@ class ChatViewModel @Inject constructor(
     private val _groupMemberUids = MutableStateFlow<Set<String>>(emptySet())
     val groupMemberUids = _groupMemberUids.asStateFlow()
 
+    private var friendshipBoundaryRef: DatabaseReference? = null
+    private var friendshipBoundaryListener: ValueEventListener? = null
+    private var directChatBoundaryTimestamp: Long = 0L
+    private var saveMessagesJob: Job? = null
+
+    private fun debouncedSaveMessages(currentUid: String, channelID: String, list: List<Message>) {
+        saveMessagesJob?.cancel()
+        saveMessagesJob = viewModelScope.launch {
+            delay(500L)
+            LocalDataCache.saveMessages(currentUid, channelID, list)
+        }
+    }
+
     private fun refreshFilteredMessages() {
-        _messages.value = rawMessages.filter { it.id !in deletedMessageIds }
+        _messages.value = rawMessages.filter {
+            it.id !in deletedMessageIds && (directChatBoundaryTimestamp <= 0L || it.createdAt >= directChatBoundaryTimestamp)
+        }
     }
 
     private val debugSendMessageCounter = java.util.concurrent.atomic.AtomicInteger(0)
@@ -115,7 +136,7 @@ class ChatViewModel @Inject constructor(
                 val profileImage = snapshot.child("imageUrl")
                     .getValue(String::class.java)
 
-                val isGroup = (channelID.startsWith("-") || channelID == HomeViewModel.WORLD_CHAT_ID || !channelID.contains("_")) && !channelID.startsWith("self_chat_")
+                val isGroup = (channelID.startsWith("-") || !channelID.contains("_")) && !channelID.startsWith("self_chat_")
                 if (isGroup && channelName.isNullOrEmpty()) {
                     db.reference.child("channel").child(channelID).addListenerForSingleValueEvent(object : ValueEventListener {
                         override fun onDataChange(chanSnapshot: DataSnapshot) {
@@ -180,65 +201,127 @@ class ChatViewModel @Inject constructor(
         senderKeyIndex: Int? = null,
         preGeneratedMessageId: String? = null
     ) {
-        val messageId = preGeneratedMessageId ?: (db.reference.child("messages").child(channelID).push().key ?: UUID.randomUUID().toString())
-        val pushRef = db.reference.child("messages").child(channelID).child(messageId)
-        val isSelfChat = channelID.startsWith("self_chat_")
-        val message = Message(
-            id = messageId,
-            senderId = uid,
-            message = messageText,
-            createdAt = System.currentTimeMillis(),
-            senderName = username,
-            senderImage = profileImage,
-            imageUrl = image,
-            readBy = if (isSelfChat) mapOf(uid to true) else null,
-            deliveredBy = if (isSelfChat) mapOf(uid to true) else null,
-            replyToMessageId = replyToMessageId,
-            replyToSenderName = replyToSenderName,
-            replyToMessageText = replyToMessageText,
-            audioUrl = audioUrl,
-            audioDurationMs = audioDurationMs,
-            videoUrl = videoUrl,
-            videoDurationMs = videoDurationMs,
-            fileUrl = fileUrl,
-            fileName = fileName,
-            fileMimeType = fileMimeType,
-            fileSizeBytes = fileSizeBytes,
-            isSavedMessage = false,
-            mediaEncrypted = mediaEncrypted,
-            mediaVersion = mediaVersion,
-            encryptedMediaKeys = encryptedMediaKeys,
-            groupEpochId = groupEpochId,
-            senderKeyIndex = senderKeyIndex
-        )
+        viewModelScope.launch(Dispatchers.IO) {
+            val messageId = preGeneratedMessageId ?: (db.reference.child("messages").child(channelID).push().key ?: UUID.randomUUID().toString())
+            val pushRef = db.reference.child("messages").child(channelID).child(messageId)
+            val isSelfChat = channelID.startsWith("self_chat_")
 
-        pushRef.setValue(message)
-            .addOnCompleteListener {
-                if (it.isSuccessful) {
-                    Log.d("ChatViewModel", "Message saved successfully")
-                    if (isSelfChat) {
-                        // Self-chat: no push notifications and no chat_hidden updates
-                        return@addOnCompleteListener
+            var finalMessageText = messageText
+            var finalCipherText: String? = null
+            var finalEncryptedMetadata: String? = null
+            var finalTextEncrypted: Boolean? = null
+            var finalEncryptedMediaKeys = encryptedMediaKeys
+            var finalGroupEpochId = groupEpochId
+            var finalSenderKeyIndex = senderKeyIndex
+            var finalReplyToSenderName = replyToSenderName
+            var finalReplyToMessageText = replyToMessageText
+            var finalFileName = fileName
+
+            val isTextMessage = messageText != null && image == null && audioUrl == null && videoUrl == null && fileUrl == null
+
+            if (isTextMessage) {
+                // Construct metadata JSON if reply info exists
+                val metadataObj = JSONObject()
+                var hasMetadata = false
+                if (!replyToSenderName.isNullOrBlank()) {
+                    metadataObj.put("replyToSenderName", replyToSenderName)
+                    hasMetadata = true
+                }
+                if (!replyToMessageText.isNullOrBlank()) {
+                    metadataObj.put("replyToMessageText", replyToMessageText)
+                    hasMetadata = true
+                }
+                val metadataJson = if (hasMetadata) metadataObj.toString() else null
+
+                val encResult = EncryptedMediaManager.encryptTextMessage(
+                    context = context,
+                    channelId = channelID,
+                    messageId = messageId,
+                    senderUid = uid,
+                    plaintext = messageText,
+                    metadataJson = metadataJson
+                )
+
+                if (encResult == null) {
+                    Log.e("ChatViewModel", "Text encryption failed for messageId: $messageId. Aborting send to prevent plaintext leak.")
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Encryption error: could not send message securely", Toast.LENGTH_SHORT).show()
                     }
-                    val isDirectChat = channelID.contains("_") && !channelID.startsWith("-") && channelID != HomeViewModel.WORLD_CHAT_ID
-                    if (isDirectChat) {
-                        db.reference.child("chat_hidden").child(uid).child(channelID).removeValue()
-                    }
-                    // Trigger notification flow safely
-                    val notifyText = if (!image.isNullOrEmpty()) {
-                        "Sent an image"
-                    } else if (!audioUrl.isNullOrEmpty()) {
-                        "🎤 Voice message"
-                    } else if (!videoUrl.isNullOrEmpty()) {
-                        "🎥 Video message"
-                    } else if (!fileUrl.isNullOrEmpty()) {
-                        "📎 File"
-                    } else {
-                        messageText ?: ""
-                    }
-                    triggerNotificationFlow(channelID, notifyText, username, profileImage, uid, channelName, messageId)
+                    return@launch
+                }
+
+                finalTextEncrypted = true
+                finalCipherText = encResult.cipherText
+                finalEncryptedMetadata = encResult.encryptedMetadata
+                finalEncryptedMediaKeys = encResult.encryptedMediaKeys
+                finalGroupEpochId = encResult.groupEpochId
+                finalSenderKeyIndex = encResult.senderKeyIndex
+                // Generic placeholder stored in Firebase Realtime Database
+                finalMessageText = "New message"
+                if (hasMetadata) {
+                    finalReplyToSenderName = null
+                    finalReplyToMessageText = null
                 }
             }
+
+            val message = Message(
+                id = messageId,
+                senderId = uid,
+                message = finalMessageText,
+                createdAt = System.currentTimeMillis(),
+                senderName = username,
+                senderImage = profileImage,
+                imageUrl = image,
+                readBy = if (isSelfChat) mapOf(uid to true) else null,
+                deliveredBy = if (isSelfChat) mapOf(uid to true) else null,
+                replyToMessageId = replyToMessageId,
+                replyToSenderName = finalReplyToSenderName,
+                replyToMessageText = finalReplyToMessageText,
+                audioUrl = audioUrl,
+                audioDurationMs = audioDurationMs,
+                videoUrl = videoUrl,
+                videoDurationMs = videoDurationMs,
+                fileUrl = fileUrl,
+                fileName = finalFileName,
+                fileMimeType = fileMimeType,
+                fileSizeBytes = fileSizeBytes,
+                isSavedMessage = false,
+                mediaEncrypted = mediaEncrypted,
+                mediaVersion = mediaVersion,
+                encryptedMediaKeys = finalEncryptedMediaKeys,
+                groupEpochId = finalGroupEpochId,
+                senderKeyIndex = finalSenderKeyIndex,
+                textEncrypted = finalTextEncrypted,
+                cipherText = finalCipherText,
+                encryptedMetadata = finalEncryptedMetadata
+            )
+
+            pushRef.setValue(message)
+                .addOnCompleteListener {
+                    if (it.isSuccessful) {
+                        Log.d("ChatViewModel", "Message saved successfully")
+                        if (isSelfChat) {
+                            return@addOnCompleteListener
+                        }
+                        val isDirectChat = channelID.contains("_") && !channelID.startsWith("-")
+                        if (isDirectChat) {
+                            db.reference.child("chat_hidden").child(uid).child(channelID).removeValue()
+                        }
+                        val notifyText = if (!image.isNullOrEmpty()) {
+                            "Sent an image"
+                        } else if (!audioUrl.isNullOrEmpty()) {
+                            "🎤 Voice message"
+                        } else if (!videoUrl.isNullOrEmpty()) {
+                            "🎥 Video message"
+                        } else if (!fileUrl.isNullOrEmpty()) {
+                            "📎 File"
+                        } else {
+                            messageText ?: ""
+                        }
+                        triggerNotificationFlow(channelID, notifyText, username, profileImage, uid, channelName, messageId)
+                    }
+                }
+        }
     }
 
     private fun triggerNotificationFlow(
@@ -252,76 +335,71 @@ class ChatViewModel @Inject constructor(
     ) {
         if (channelID.startsWith("self_chat_")) return
         val threadName = Thread.currentThread().name
-        val isDirectChat = channelID.contains("_") && !channelID.startsWith("-") && channelID != HomeViewModel.WORLD_CHAT_ID
+        val isDirectChat = channelID.contains("_") && !channelID.startsWith("-")
+        val parts = channelID.split("_")
+        val canonicalChatId = if (isDirectChat && parts.size == 2) {
+            val u1 = parts[0]
+            val u2 = parts[1]
+            if (u1 < u2) "${u1}_$u2" else "${u2}_$u1"
+        } else {
+            channelID
+        }
+        val topic = if (isDirectChat) {
+            "direct_$canonicalChatId"
+        } else {
+            "group_$channelID"
+        }
+
+        // Primary: Broadcast via topic (delivers reliably to all subscribed devices via FCM broker)
+        sendNotificationRequest(
+            channelID = canonicalChatId,
+            messageText = messageText,
+            senderName = senderName,
+            senderImage = senderImage,
+            senderUid = senderUid,
+            receiverUid = null,
+            topic = topic,
+            channelName = channelName,
+            messageId = messageId
+        )
+
+        // For direct chats: also attempt direct receiverUid delivery as dual-delivery fallback
         if (isDirectChat) {
-            // Direct chat: Send to the receiver's UID (server resolves token securely)
-            val parts = channelID.split("_")
             val receiverUid = parts.firstOrNull { it != senderUid }
             if (receiverUid != null && receiverUid != senderUid) {
-                sendNotificationRequest(
-                    channelID = channelID,
-                    messageText = messageText,
-                    senderName = senderName,
-                    senderImage = senderImage,
-                    senderUid = senderUid,
-                    receiverUid = receiverUid,
-                    topic = null,
-                    channelName = channelName,
-                    messageId = messageId
-                )
+                db.reference.child("users").child(receiverUid).child("fcmToken")
+                    .addListenerForSingleValueEvent(object : ValueEventListener {
+                        override fun onDataChange(snapshot: DataSnapshot) {
+                            val token = snapshot.getValue(String::class.java)
+                            sendNotificationRequest(
+                                channelID = canonicalChatId,
+                                messageText = messageText,
+                                senderName = senderName,
+                                senderImage = senderImage,
+                                senderUid = senderUid,
+                                receiverUid = receiverUid,
+                                topic = null,
+                                channelName = channelName,
+                                messageId = messageId,
+                                receiverToken = token
+                            )
+                        }
+
+                        override fun onCancelled(error: DatabaseError) {
+                            sendNotificationRequest(
+                                channelID = canonicalChatId,
+                                messageText = messageText,
+                                senderName = senderName,
+                                senderImage = senderImage,
+                                senderUid = senderUid,
+                                receiverUid = receiverUid,
+                                topic = null,
+                                channelName = channelName,
+                                messageId = messageId
+                            )
+                        }
+                    })
             }
-        } else if (channelID == HomeViewModel.WORLD_CHAT_ID) {
-            // World Chat: Distribute notifications directly to all registered users' UIDs
-            db.reference.child("users")
-                .addListenerForSingleValueEvent(object : ValueEventListener {
-                    override fun onDataChange(snapshot: DataSnapshot) {
-                        snapshot.children.forEach { userSnapshot ->
-                            val userUid = userSnapshot.key
-                            if (userUid != null && userUid != senderUid) {
-                                sendNotificationRequest(
-                                    channelID = channelID,
-                                    messageText = messageText,
-                                    senderName = senderName,
-                                    senderImage = senderImage,
-                                    senderUid = senderUid,
-                                    receiverUid = userUid,
-                                    topic = null,
-                                    channelName = channelName,
-                                    messageId = messageId
-                                )
-                            }
-                        }
-                    }
-                    override fun onCancelled(error: DatabaseError) {
-                        Log.e("ChatViewModel", "World chat members fetch failed")
-                    }
-                })
-        } else {
-            // Custom group: Distribute notifications ONLY to verified members of this group
-            db.reference.child("channels").child(channelID).child("users")
-                .addListenerForSingleValueEvent(object : ValueEventListener {
-                    override fun onDataChange(snapshot: DataSnapshot) {
-                        snapshot.children.forEach { memberSnapshot ->
-                            val userUid = memberSnapshot.key
-                            if (userUid != null && userUid != senderUid) {
-                                sendNotificationRequest(
-                                    channelID = channelID,
-                                    messageText = messageText,
-                                    senderName = senderName,
-                                    senderImage = senderImage,
-                                    senderUid = senderUid,
-                                    receiverUid = userUid,
-                                    topic = null,
-                                    channelName = channelName,
-                                    messageId = messageId
-                                )
-                            }
-                        }
-                    }
-                    override fun onCancelled(error: DatabaseError) {
-                        Log.e("ChatViewModel", "Custom group members fetch failed")
-                    }
-                })
         }
     }
 
@@ -334,14 +412,15 @@ class ChatViewModel @Inject constructor(
         receiverUid: String? = null,
         topic: String? = null,
         channelName: String? = null,
-        messageId: String? = null
+        messageId: String? = null,
+        receiverToken: String? = null
     ) {
         val requestCount = debugRequestCounter.incrementAndGet()
         val threadName = Thread.currentThread().name
         Log.d("FCM_DUPLICATE_DEBUG", "[sendNotificationRequest ENTRY] Timestamp: ${System.currentTimeMillis()}, ExecCount: $requestCount, channelID: $channelID, receiverUid: $receiverUid, topic: $topic, Thread: $threadName")
         val url = "https://kchat-notification-server.onrender.com/sendNotification"
         val jsonBody = JSONObject().apply {
-            val isGroup = channelID.startsWith("-") || channelID == HomeViewModel.WORLD_CHAT_ID || !channelID.contains("_")
+            val isGroup = channelID.startsWith("-") || !channelID.contains("_")
             if (isGroup && !channelName.isNullOrEmpty()) {
                 put("title", channelName)
                 put("body", "$senderName: $messageText")
@@ -354,6 +433,9 @@ class ChatViewModel @Inject constructor(
             }
             if (!topic.isNullOrEmpty()) {
                 put("topic", topic)
+            }
+            if (!receiverToken.isNullOrEmpty()) {
+                put("token", receiverToken)
             }
             if (!messageId.isNullOrEmpty()) {
                 put("messageId", messageId)
@@ -428,7 +510,8 @@ class ChatViewModel @Inject constructor(
     }
 
     fun sendImageMessage(
-        uri: Uri,
+        file: File? = null,
+        uri: Uri? = null,
         channelID: String,
         channelName: String,
         replyToMessageId: String? = null,
@@ -436,29 +519,31 @@ class ChatViewModel @Inject constructor(
         replyToMessageText: String? = null
     ) {
         viewModelScope.launch {
-            val fileSize = try {
-                context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
-            } catch (e: Exception) { 0L }
-            if (fileSize > EncryptedMediaManager.MAX_MEDIA_SIZE_BYTES) {
-                Toast.makeText(context, "Media exceeds 50 MB limit", Toast.LENGTH_SHORT).show()
+            val rawBytes = try {
+                if (file != null && file.exists() && file.length() > 0) {
+                    file.readBytes()
+                } else if (uri != null) {
+                    if (uri.scheme == "file") {
+                        uri.path?.let { File(it).takeIf { f -> f.exists() }?.readBytes() }
+                            ?: context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    } else {
+                        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    }
+                } else null
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Error reading image data", e)
+                null
+            }
+
+            if (rawBytes == null || rawBytes.isEmpty()) {
+                Toast.makeText(context, "Failed to load image", Toast.LENGTH_SHORT).show()
+                try { if (file?.exists() == true) file.delete() } catch (_: Exception) {}
                 return@launch
             }
 
-            // World Chat: legacy public unencrypted media
-            if (channelID == HomeViewModel.WORLD_CHAT_ID) {
-                val storageUtils = SupabaseStorageUtils(context)
-                val downloadUri = storageUtils.uploadImage(uri, channelID = channelID)
-                downloadUri?.let {
-                    sendMessage(
-                        channelID = channelID,
-                        messageText = null,
-                        image = downloadUri,
-                        channelName = channelName,
-                        replyToMessageId = replyToMessageId,
-                        replyToSenderName = replyToSenderName,
-                        replyToMessageText = replyToMessageText
-                    )
-                }
+            if (rawBytes.size > EncryptedMediaManager.MAX_MEDIA_SIZE_BYTES) {
+                Toast.makeText(context, "Media exceeds 50 MB limit", Toast.LENGTH_SHORT).show()
+                try { if (file?.exists() == true) file.delete() } catch (_: Exception) {}
                 return@launch
             }
 
@@ -468,7 +553,6 @@ class ChatViewModel @Inject constructor(
             val preGenPushRef = db.reference.child("messages").child(channelID).push()
             val messageId = preGenPushRef.key ?: UUID.randomUUID().toString()
 
-            val rawBytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@launch
             val isDirectChat = (channelID.contains("_") || channelID.startsWith("self_chat_")) && !channelID.startsWith("-")
 
             if (isDirectChat) {
@@ -483,20 +567,22 @@ class ChatViewModel @Inject constructor(
                     rawBytes = rawBytes,
                     mimeType = "image/jpeg"
                 )
-                result?.let {
+                if (result != null) {
                     sendMessage(
                         channelID = channelID,
                         messageText = null,
-                        image = it.vaultUrl,
+                        image = result.vaultUrl,
                         channelName = channelName,
                         replyToMessageId = replyToMessageId,
                         replyToSenderName = replyToSenderName,
                         replyToMessageText = replyToMessageText,
                         mediaEncrypted = true,
                         mediaVersion = 1,
-                        encryptedMediaKeys = it.encryptedMediaKeys,
+                        encryptedMediaKeys = result.encryptedMediaKeys,
                         preGeneratedMessageId = messageId
                     )
+                } else {
+                    Toast.makeText(context, "Failed to send encrypted image", Toast.LENGTH_SHORT).show()
                 }
             } else {
                 val result = EncryptedMediaManager.encryptAndUploadGroupMedia(
@@ -508,25 +594,45 @@ class ChatViewModel @Inject constructor(
                     rawBytes = rawBytes,
                     mimeType = "image/jpeg"
                 )
-                result?.let {
+                if (result != null) {
                     sendMessage(
                         channelID = channelID,
                         messageText = null,
-                        image = it.vaultUrl,
+                        image = result.vaultUrl,
                         channelName = channelName,
                         replyToMessageId = replyToMessageId,
                         replyToSenderName = replyToSenderName,
                         replyToMessageText = replyToMessageText,
                         mediaEncrypted = true,
                         mediaVersion = 1,
-                        groupEpochId = it.epochId,
-                        senderKeyIndex = it.senderKeyIndex,
+                        groupEpochId = result.epochId,
+                        senderKeyIndex = result.senderKeyIndex,
                         preGeneratedMessageId = messageId
                     )
+                } else {
+                    Toast.makeText(context, "Failed to send encrypted group image", Toast.LENGTH_SHORT).show()
                 }
             }
+            try { if (file?.exists() == true) file.delete() } catch (_: Exception) {}
         }
     }
+
+    fun sendImageMessage(
+        uri: Uri,
+        channelID: String,
+        channelName: String,
+        replyToMessageId: String? = null,
+        replyToSenderName: String? = null,
+        replyToMessageText: String? = null
+    ) = sendImageMessage(
+        file = null,
+        uri = uri,
+        channelID = channelID,
+        channelName = channelName,
+        replyToMessageId = replyToMessageId,
+        replyToSenderName = replyToSenderName,
+        replyToMessageText = replyToMessageText
+    )
 
     fun sendAudioMessage(
         file: File,
@@ -543,26 +649,6 @@ class ChatViewModel @Inject constructor(
                 return@launch
             }
 
-            if (channelID == HomeViewModel.WORLD_CHAT_ID) {
-                val storageUtils = SupabaseStorageUtils(context)
-                val downloadUri = storageUtils.uploadAudio(file, channelID = channelID)
-                downloadUri?.let { audioUrl ->
-                    sendMessage(
-                        channelID = channelID,
-                        messageText = null,
-                        image = null,
-                        channelName = channelName,
-                        replyToMessageId = replyToMessageId,
-                        replyToSenderName = replyToSenderName,
-                        replyToMessageText = replyToMessageText,
-                        audioUrl = audioUrl,
-                        audioDurationMs = durationMs
-                    )
-                }
-                try { if (file.exists()) file.delete() } catch (_: Exception) {}
-                return@launch
-            }
-
             val currentUser = Firebase.auth.currentUser ?: return@launch
             val senderUid = currentUser.uid
             val preGenPushRef = db.reference.child("messages").child(channelID).push()
@@ -581,7 +667,7 @@ class ChatViewModel @Inject constructor(
                     rawFile = file,
                     mimeType = "audio/mp4"
                 )
-                result?.let {
+                if (result != null) {
                     sendMessage(
                         channelID = channelID,
                         messageText = null,
@@ -590,13 +676,15 @@ class ChatViewModel @Inject constructor(
                         replyToMessageId = replyToMessageId,
                         replyToSenderName = replyToSenderName,
                         replyToMessageText = replyToMessageText,
-                        audioUrl = it.vaultUrl,
+                        audioUrl = result.vaultUrl,
                         audioDurationMs = durationMs,
                         mediaEncrypted = true,
                         mediaVersion = 1,
-                        encryptedMediaKeys = it.encryptedMediaKeys,
+                        encryptedMediaKeys = result.encryptedMediaKeys,
                         preGeneratedMessageId = messageId
                     )
+                } else {
+                    Toast.makeText(context, "Failed to send encrypted audio", Toast.LENGTH_SHORT).show()
                 }
             } else {
                 val result = EncryptedMediaManager.encryptAndUploadGroupMedia(
@@ -608,7 +696,7 @@ class ChatViewModel @Inject constructor(
                     rawFile = file,
                     mimeType = "audio/mp4"
                 )
-                result?.let {
+                if (result != null) {
                     sendMessage(
                         channelID = channelID,
                         messageText = null,
@@ -617,16 +705,20 @@ class ChatViewModel @Inject constructor(
                         replyToMessageId = replyToMessageId,
                         replyToSenderName = replyToSenderName,
                         replyToMessageText = replyToMessageText,
-                        audioUrl = it.vaultUrl,
+                        audioUrl = result.vaultUrl,
                         audioDurationMs = durationMs,
                         mediaEncrypted = true,
                         mediaVersion = 1,
-                        groupEpochId = it.epochId,
-                        senderKeyIndex = it.senderKeyIndex,
+                        groupEpochId = result.epochId,
+                        senderKeyIndex = result.senderKeyIndex,
                         preGeneratedMessageId = messageId
                     )
+                } else {
+                    Toast.makeText(context, "Failed to send encrypted group audio", Toast.LENGTH_SHORT).show()
                 }
             }
+            val cachedDec = File(context.noBackupFilesDir, "temp_dec_audio_${messageId}.m4a")
+            try { file.copyTo(cachedDec, overwrite = true) } catch (_: Exception) {}
             try { if (file.exists()) file.delete() } catch (_: Exception) {}
         }
     }
@@ -646,26 +738,6 @@ class ChatViewModel @Inject constructor(
                 return@launch
             }
 
-            if (channelID == HomeViewModel.WORLD_CHAT_ID) {
-                val storageUtils = SupabaseStorageUtils(context)
-                val downloadUri = storageUtils.uploadVideo(file, channelID = channelID)
-                downloadUri?.let { videoUrl ->
-                    sendMessage(
-                        channelID = channelID,
-                        messageText = null,
-                        image = null,
-                        channelName = channelName,
-                        replyToMessageId = replyToMessageId,
-                        replyToSenderName = replyToSenderName,
-                        replyToMessageText = replyToMessageText,
-                        videoUrl = videoUrl,
-                        videoDurationMs = durationMs
-                    )
-                }
-                try { if (file.exists()) file.delete() } catch (_: Exception) {}
-                return@launch
-            }
-
             val currentUser = Firebase.auth.currentUser ?: return@launch
             val senderUid = currentUser.uid
             val preGenPushRef = db.reference.child("messages").child(channelID).push()
@@ -684,7 +756,7 @@ class ChatViewModel @Inject constructor(
                     rawFile = file,
                     mimeType = "video/mp4"
                 )
-                result?.let {
+                if (result != null) {
                     sendMessage(
                         channelID = channelID,
                         messageText = null,
@@ -693,13 +765,15 @@ class ChatViewModel @Inject constructor(
                         replyToMessageId = replyToMessageId,
                         replyToSenderName = replyToSenderName,
                         replyToMessageText = replyToMessageText,
-                        videoUrl = it.vaultUrl,
+                        videoUrl = result.vaultUrl,
                         videoDurationMs = durationMs,
                         mediaEncrypted = true,
                         mediaVersion = 1,
-                        encryptedMediaKeys = it.encryptedMediaKeys,
+                        encryptedMediaKeys = result.encryptedMediaKeys,
                         preGeneratedMessageId = messageId
                     )
+                } else {
+                    Toast.makeText(context, "Failed to send encrypted video", Toast.LENGTH_SHORT).show()
                 }
             } else {
                 val result = EncryptedMediaManager.encryptAndUploadGroupMedia(
@@ -711,7 +785,7 @@ class ChatViewModel @Inject constructor(
                     rawFile = file,
                     mimeType = "video/mp4"
                 )
-                result?.let {
+                if (result != null) {
                     sendMessage(
                         channelID = channelID,
                         messageText = null,
@@ -720,16 +794,20 @@ class ChatViewModel @Inject constructor(
                         replyToMessageId = replyToMessageId,
                         replyToSenderName = replyToSenderName,
                         replyToMessageText = replyToMessageText,
-                        videoUrl = it.vaultUrl,
+                        videoUrl = result.vaultUrl,
                         videoDurationMs = durationMs,
                         mediaEncrypted = true,
                         mediaVersion = 1,
-                        groupEpochId = it.epochId,
-                        senderKeyIndex = it.senderKeyIndex,
+                        groupEpochId = result.epochId,
+                        senderKeyIndex = result.senderKeyIndex,
                         preGeneratedMessageId = messageId
                     )
+                } else {
+                    Toast.makeText(context, "Failed to send encrypted group video", Toast.LENGTH_SHORT).show()
                 }
             }
+            val cachedDec = File(context.noBackupFilesDir, "temp_dec_video_${messageId}.mp4")
+            try { file.copyTo(cachedDec, overwrite = true) } catch (_: Exception) {}
             try { if (file.exists()) file.delete() } catch (_: Exception) {}
         }
     }
@@ -751,28 +829,6 @@ class ChatViewModel @Inject constructor(
                 return@launch
             }
 
-            if (channelID == HomeViewModel.WORLD_CHAT_ID) {
-                val storageUtils = SupabaseStorageUtils(context)
-                val downloadUri = storageUtils.uploadFile(file, fileName, mimeType, channelID = channelID)
-                downloadUri?.let { fileUrl ->
-                    sendMessage(
-                        channelID = channelID,
-                        messageText = null,
-                        image = null,
-                        channelName = channelName,
-                        replyToMessageId = replyToMessageId,
-                        replyToSenderName = replyToSenderName,
-                        replyToMessageText = replyToMessageText,
-                        fileUrl = fileUrl,
-                        fileName = fileName,
-                        fileMimeType = mimeType,
-                        fileSizeBytes = fileSizeBytes
-                    )
-                }
-                try { if (file.exists()) file.delete() } catch (_: Exception) {}
-                return@launch
-            }
-
             val currentUser = Firebase.auth.currentUser ?: return@launch
             val senderUid = currentUser.uid
             val preGenPushRef = db.reference.child("messages").child(channelID).push()
@@ -791,7 +847,7 @@ class ChatViewModel @Inject constructor(
                     rawFile = file,
                     mimeType = mimeType
                 )
-                result?.let {
+                if (result != null) {
                     sendMessage(
                         channelID = channelID,
                         messageText = null,
@@ -800,15 +856,17 @@ class ChatViewModel @Inject constructor(
                         replyToMessageId = replyToMessageId,
                         replyToSenderName = replyToSenderName,
                         replyToMessageText = replyToMessageText,
-                        fileUrl = it.vaultUrl,
+                        fileUrl = result.vaultUrl,
                         fileName = fileName,
                         fileMimeType = mimeType,
                         fileSizeBytes = fileSizeBytes,
                         mediaEncrypted = true,
                         mediaVersion = 1,
-                        encryptedMediaKeys = it.encryptedMediaKeys,
+                        encryptedMediaKeys = result.encryptedMediaKeys,
                         preGeneratedMessageId = messageId
                     )
+                } else {
+                    Toast.makeText(context, "Failed to send encrypted document", Toast.LENGTH_SHORT).show()
                 }
             } else {
                 val result = EncryptedMediaManager.encryptAndUploadGroupMedia(
@@ -820,7 +878,7 @@ class ChatViewModel @Inject constructor(
                     rawFile = file,
                     mimeType = mimeType
                 )
-                result?.let {
+                if (result != null) {
                     sendMessage(
                         channelID = channelID,
                         messageText = null,
@@ -829,18 +887,23 @@ class ChatViewModel @Inject constructor(
                         replyToMessageId = replyToMessageId,
                         replyToSenderName = replyToSenderName,
                         replyToMessageText = replyToMessageText,
-                        fileUrl = it.vaultUrl,
+                        fileUrl = result.vaultUrl,
                         fileName = fileName,
                         fileMimeType = mimeType,
                         fileSizeBytes = fileSizeBytes,
                         mediaEncrypted = true,
                         mediaVersion = 1,
-                        groupEpochId = it.epochId,
-                        senderKeyIndex = it.senderKeyIndex,
+                        groupEpochId = result.epochId,
+                        senderKeyIndex = result.senderKeyIndex,
                         preGeneratedMessageId = messageId
                     )
+                } else {
+                    Toast.makeText(context, "Failed to send encrypted group document", Toast.LENGTH_SHORT).show()
                 }
             }
+            val safeName = fileName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+            val cachedDec = File(context.noBackupFilesDir, "temp_dec_doc_${messageId}_$safeName")
+            try { file.copyTo(cachedDec, overwrite = true) } catch (_: Exception) {}
             try { if (file.exists()) file.delete() } catch (_: Exception) {}
         }
     }
@@ -848,6 +911,32 @@ class ChatViewModel @Inject constructor(
     fun listenForMessages(channelID: String) {
         val currentUid = Firebase.auth.currentUser?.uid ?: return
         _isMessagesLoaded.value = false
+
+        val cached = memoryMessageCache.get(channelID)
+        if (!cached.isNullOrEmpty()) {
+            rawMessages = cached
+            refreshFilteredMessages()
+        } else {
+            viewModelScope.launch(Dispatchers.IO) {
+                val diskCached = LocalDataCache.loadMessages(currentUid, channelID)
+                if (diskCached.isNotEmpty() && rawMessages.isEmpty()) {
+                    val decryptedDisk = diskCached.map { msg ->
+                        if (msg.textEncrypted == true) {
+                            EncryptedMediaManager.decryptTextMessage(context, channelID, msg)
+                        } else {
+                            msg
+                        }
+                    }
+                    withContext(Dispatchers.Main) {
+                        if (rawMessages.isEmpty()) {
+                            rawMessages = decryptedDisk
+                            memoryMessageCache.put(channelID, decryptedDisk)
+                            refreshFilteredMessages()
+                        }
+                    }
+                }
+            }
+        }
 
         deletedMessagesRef?.let { ref ->
             deletedMessagesListener?.let { listener ->
@@ -889,8 +978,17 @@ class ChatViewModel @Inject constructor(
         cachedSelfMessages = emptyList()
         cachedSavedMessages = emptyList()
 
+        friendshipBoundaryRef?.let { ref ->
+            friendshipBoundaryListener?.let { listener ->
+                ref.removeEventListener(listener)
+            }
+        }
+        friendshipBoundaryRef = null
+        friendshipBoundaryListener = null
+        directChatBoundaryTimestamp = 0L
+
         val isSelfChat = channelID.startsWith("self_chat_")
-        val isDirectChat = !isSelfChat && channelID.contains("_") && !channelID.startsWith("-") && channelID != HomeViewModel.WORLD_CHAT_ID
+        val isDirectChat = !isSelfChat && channelID.contains("_") && !channelID.startsWith("-")
         if (isSelfChat) {
             _groupMemberUids.value = setOf(currentUid)
             _isAccessDenied.value = false
@@ -898,14 +996,29 @@ class ChatViewModel @Inject constructor(
         } else if (isDirectChat) {
             val parts = channelID.split("_").toSet()
             _groupMemberUids.value = parts
+            val otherUid = channelID.split("_").firstOrNull { it != currentUid } ?: ""
+            if (otherUid.isNotEmpty()) {
+                val boundaryRef = db.reference.child("friends").child(currentUid).child(otherUid)
+                friendshipBoundaryRef = boundaryRef
+                val bListener = object : ValueEventListener {
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        directChatBoundaryTimestamp = when (val v = snapshot.value) {
+                            is Number -> v.toLong()
+                            else -> 0L
+                        }
+                        refreshFilteredMessages()
+                    }
+                    override fun onCancelled(error: DatabaseError) {}
+                }
+                friendshipBoundaryListener = bListener
+                boundaryRef.addValueEventListener(bListener)
+            }
             subscribeForNotification(channelID)
             attachMessageListener(channelID)
         } else if (channelID == HomeViewModel.WORLD_CHAT_ID) {
+            _isAccessDenied.value = true
             _groupMemberUids.value = emptySet()
-            subscribeForNotification(channelID)
-            registerUserIdtoChannel(channelID) {
-                attachMessageListener(channelID)
-            }
+            return
         } else {
             val channelsRef = db.reference.child("channels").child(channelID).child("users")
             val creatorRef = db.reference.child("channel_creator").child(channelID)
@@ -961,7 +1074,6 @@ class ChatViewModel @Inject constructor(
         val ref = db.getReference("messages").child(channelID)
         messagesRef = ref
         val currentUid = Firebase.auth.currentUser?.uid
-        val isWorldChat = channelID == HomeViewModel.WORLD_CHAT_ID
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val list = mutableListOf<Message>()
@@ -976,7 +1088,7 @@ class ChatViewModel @Inject constructor(
                     }
                     resolved?.let {
                         list.add(it)
-                        if (currentUid != null && !isWorldChat && it.senderId != currentUid && it.deliveredBy?.get(currentUid) != true) {
+                        if (currentUid != null && it.senderId != currentUid && it.deliveredBy?.get(currentUid) != true) {
                             val now = System.currentTimeMillis()
                             data.ref.child("deliveredBy").child(currentUid).setValue(true)
                             data.ref.child("deliveredAt").child(currentUid).setValue(now)
@@ -984,9 +1096,30 @@ class ChatViewModel @Inject constructor(
                     }
                 }
 
-                rawMessages = list
-                refreshFilteredMessages()
-                _isMessagesLoaded.value = true
+                viewModelScope.launch(Dispatchers.IO) {
+                    val decryptedList = list.map { msg ->
+                        if (msg.textEncrypted == true) {
+                            EncryptedMediaManager.decryptTextMessage(context, channelID, msg)
+                        } else {
+                            msg
+                        }
+                    }
+
+                    withContext(Dispatchers.Main) {
+                        rawMessages = decryptedList
+                        val toCache = if (directChatBoundaryTimestamp > 0L) {
+                            decryptedList.filter { it.createdAt >= directChatBoundaryTimestamp }
+                        } else {
+                            decryptedList
+                        }
+                        memoryMessageCache.put(channelID, toCache.takeLast(100))
+                        refreshFilteredMessages()
+                        _isMessagesLoaded.value = true
+                        if (currentUid != null) {
+                            debouncedSaveMessages(currentUid, channelID, toCache)
+                        }
+                    }
+                }
             }
 
             override fun onCancelled(error: DatabaseError) {
@@ -1068,26 +1201,44 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun updateSelfChatCombinedMessages(channelID: String) {
-        val selfMsgIds = cachedSelfMessages.map { it.id }.toSet()
+        viewModelScope.launch(Dispatchers.IO) {
+            val selfMsgIds = cachedSelfMessages.map { it.id }.toSet()
 
-        val filteredSavedMessages = cachedSavedMessages.filter { savedMsg ->
-            val origChatId = savedMsg.originalChatId ?: ""
-            val origMsgId = savedMsg.originalMessageId ?: ""
-            val isDuplicateOfSelfChat = (origChatId == channelID || origChatId.startsWith("self_chat_")) && origMsgId in selfMsgIds
-            !isDuplicateOfSelfChat
-        }
+            val filteredSavedMessages = cachedSavedMessages.filter { savedMsg ->
+                val origChatId = savedMsg.originalChatId ?: ""
+                val origMsgId = savedMsg.originalMessageId ?: ""
+                val isDuplicateOfSelfChat = (origChatId == channelID || origChatId.startsWith("self_chat_")) && origMsgId in selfMsgIds
+                !isDuplicateOfSelfChat
+            }
 
-        val combined = (cachedSelfMessages + filteredSavedMessages).sortedBy { msg ->
-            if (msg.isSavedMessage && (msg.savedAt ?: 0L) > 0L) {
-                msg.savedAt ?: msg.createdAt
-            } else {
-                msg.createdAt
+            val combined = (cachedSelfMessages + filteredSavedMessages).sortedBy { msg ->
+                if (msg.isSavedMessage && (msg.savedAt ?: 0L) > 0L) {
+                    msg.savedAt ?: msg.createdAt
+                } else {
+                    msg.createdAt
+                }
+            }
+
+            val decryptedCombined = combined.map { msg ->
+                if (msg.textEncrypted == true) {
+                    val targetChatId = if (msg.isSavedMessage && !msg.originalChatId.isNullOrBlank()) msg.originalChatId else channelID
+                    EncryptedMediaManager.decryptTextMessage(context, targetChatId, msg)
+                } else {
+                    msg
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                rawMessages = decryptedCombined
+                memoryMessageCache.put(channelID, decryptedCombined.takeLast(100))
+                refreshFilteredMessages()
+                _isMessagesLoaded.value = true
+                val currentUid = Firebase.auth.currentUser?.uid
+                if (currentUid != null) {
+                    debouncedSaveMessages(currentUid, channelID, decryptedCombined)
+                }
             }
         }
-
-        rawMessages = combined
-        refreshFilteredMessages()
-        _isMessagesLoaded.value = true
     }
 
     fun getGroupCallInvitees(
@@ -1135,15 +1286,11 @@ class ChatViewModel @Inject constructor(
                             db.reference.child("users").child(uid)
                                 .addListenerForSingleValueEvent(object : ValueEventListener {
                                     override fun onDataChange(userSnap: DataSnapshot) {
-                                        val email = userSnap.child("email").getValue(String::class.java)
-                                        val name = userSnap.child("name").getValue(String::class.java)
-                                            ?: email
-                                            ?: ""
-                                        if (!email.isNullOrBlank()) {
-                                            invitees.add(
-                                                com.zegocloud.uikit.service.defines.ZegoUIKitUser(email, name)
-                                            )
-                                        }
+                                        val email = userSnap.child("email").getValue(String::class.java)?.takeIf { it.isNotBlank() } ?: "user_${uid.take(5)}@kchat.com"
+                                        val name = userSnap.child("name").getValue(String::class.java)?.takeIf { it.isNotBlank() } ?: email
+                                        invitees.add(
+                                            com.zegocloud.uikit.service.defines.ZegoUIKitUser(email.take(32), name)
+                                        )
                                         pending--
                                         if (pending <= 0) {
                                             callback.invoke(invitees, totalGroupMembers)
@@ -1273,9 +1420,17 @@ class ChatViewModel @Inject constructor(
     private fun subscribeForNotification(channelID: String) {
         if (channelID.startsWith("self_chat_")) return
 
-        val isDirect = channelID.contains("_") && !channelID.startsWith("-") && channelID != HomeViewModel.WORLD_CHAT_ID
+        val isDirect = channelID.contains("_") && !channelID.startsWith("-")
         val topic = if (isDirect) {
-            "direct_$channelID"
+            val parts = channelID.split("_")
+            if (parts.size == 2) {
+                val u1 = parts[0]
+                val u2 = parts[1]
+                val canonicalChatId = if (u1 < u2) "${u1}_$u2" else "${u2}_$u1"
+                "direct_$canonicalChatId"
+            } else {
+                "direct_$channelID"
+            }
         } else {
             "group_$channelID"
         }
@@ -1292,7 +1447,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun markMessagesAsRead(channelID: String) {
-        if (channelID.startsWith("self_chat_")) return
+        if (channelID.startsWith("self_chat_") || channelID == HomeViewModel.WORLD_CHAT_ID) return
         val currentUid = Firebase.auth.currentUser?.uid ?: return
 
         db.reference.child("messages")
@@ -1388,16 +1543,17 @@ class ChatViewModel @Inject constructor(
 
     fun acceptFriendRequest(senderUid: String) {
         val currentUid = Firebase.auth.currentUser?.uid ?: return
+        val now = System.currentTimeMillis()
 
         db.reference.child("friends")
             .child(currentUid)
             .child(senderUid)
-            .setValue(true)
+            .setValue(now)
 
         db.reference.child("friends")
             .child(senderUid)
             .child(currentUid)
-            .setValue(true)
+            .setValue(now)
 
         db.reference.child("friend_requests")
             .child(currentUid)
@@ -1804,6 +1960,26 @@ class ChatViewModel @Inject constructor(
         }
         savedMessagesListener = null
         savedMessagesRef = null
+
+        friendshipBoundaryRef?.let { ref ->
+            friendshipBoundaryListener?.let { listener ->
+                ref.removeEventListener(listener)
+            }
+        }
+        friendshipBoundaryListener = null
+        friendshipBoundaryRef = null
+    }
+
+    companion object {
+        private val memoryMessageCache = LruCache<String, List<Message>>(50)
+
+        fun clearMemoryCache(channelId: String? = null) {
+            if (channelId != null) {
+                memoryMessageCache.remove(channelId)
+            } else {
+                memoryMessageCache.evictAll()
+            }
+        }
     }
 
 }

@@ -27,8 +27,8 @@ object MessageCopyFormatter {
             return textMessages.first().message?.trim() ?: ""
         }
 
-        return textMessages.joinToString("\n\n") { msg ->
-            val sender = msg.senderName.ifBlank { "Someone" }
+        return textMessages.joinToString("\n") { msg ->
+            val sender = msg.senderName.ifBlank { "User" }
             val text = msg.message?.trim() ?: ""
             "$sender: $text"
         }

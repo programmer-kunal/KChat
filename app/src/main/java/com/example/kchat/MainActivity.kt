@@ -53,15 +53,25 @@ class MainActivity : FragmentActivity() {
             val currentUser = auth.currentUser
             if (currentUser != null) {
                 val uid = currentUser.uid
+                getSharedPreferences("kchat_user_prefs", android.content.Context.MODE_PRIVATE)
+                    .edit().putString("current_uid", uid).apply()
                 Log.d("NotificationDebug", "MainActivity AuthStateListener -> User logged in: $uid")
                 
                 // Upload token immediately upon login/session restore
                 FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
                     Log.d("NotificationDebug", "MainActivity AuthStateListener -> FCM token retrieved: $token")
+                    // Primary secure location: user_private/$uid/fcmToken
+                    Firebase.database.getReference("user_private")
+                        .child(uid)
+                        .child("fcmToken")
+                        .setValue(token)
+                    // Backward compatibility during migration: also write to users/$uid/fcmToken
                     Firebase.database.getReference("users")
                         .child(uid)
                         .child("fcmToken")
                         .setValue(token)
+
+                    FirebaseMessaging.getInstance().subscribeToTopic("group_world_chat")
                 }
                 
                 // Setup online presence system
@@ -145,22 +155,26 @@ class MainActivity : FragmentActivity() {
                 val connected = snapshot.getValue(Boolean::class.java) ?: false
 
                 if (connected) {
+                    val currentUid = Firebase.auth.currentUser?.uid ?: return
+                    val currentStatusRef = database.getReference("status/$currentUid")
 
                     // When user disconnects
-                    statusRef.onDisconnect().setValue(
+                    currentStatusRef.onDisconnect().setValue(
                         mapOf(
                             "online" to false,
                             "lastSeen" to ServerValue.TIMESTAMP
                         )
                     )
 
-                    // When user connects
-                    statusRef.setValue(
-                        mapOf(
-                            "online" to true,
-                            "lastSeen" to System.currentTimeMillis()
+                    // When user connects and is in foreground
+                    if (KChat.isAppInForeground) {
+                        currentStatusRef.setValue(
+                            mapOf(
+                                "online" to true,
+                                "lastSeen" to ServerValue.TIMESTAMP
+                            )
                         )
-                    )
+                    }
                 }
             }
 

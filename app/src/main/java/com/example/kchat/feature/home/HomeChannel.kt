@@ -1,5 +1,7 @@
 package com.example.kchat.feature.home
+import androidx.compose.runtime.Immutable
 
+@Immutable
 data class HomeChannel(
     val id: String,
     val name: String,

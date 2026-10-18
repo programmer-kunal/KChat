@@ -1,5 +1,7 @@
 package com.example.kchat.model
+import androidx.compose.runtime.Immutable
 
+@Immutable
 data class User(
     val uid: String = "",
     val name: String = "",

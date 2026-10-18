@@ -17,8 +17,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import android.content.ContentValues
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.widget.Toast
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
@@ -78,8 +84,13 @@ fun FullScreenVideoDialog(
 
     val primaryColor = MaterialTheme.colorScheme.primary
 
+    val targetDuration = message?.videoDurationMs?.takeIf { it > 0L } ?: durationMs
+
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            videoPlayerHelper.stop()
+            onDismiss()
+        },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Box(
@@ -97,12 +108,12 @@ fun FullScreenVideoDialog(
                                     if (message?.mediaEncrypted == true && channelId != null) {
                                         val decFile = com.example.kchat.crypto.EncryptedMediaManager.getOrDecryptVideoFile(context, channelId, message)
                                         if (decFile != null) {
-                                            videoPlayerHelper.play(decFile.absolutePath, durationMs)
+                                            videoPlayerHelper.play(decFile.absolutePath, targetDuration)
                                         }
                                     } else {
                                         val urlToPlay = resolvedVideoUrl ?: VaultMediaManager.resolveMediaUrl(videoUrl) ?: videoUrl
                                         resolvedVideoUrl = urlToPlay
-                                        videoPlayerHelper.play(urlToPlay, durationMs)
+                                        videoPlayerHelper.play(urlToPlay, targetDuration)
                                     }
                                 }
                             }
@@ -139,7 +150,7 @@ fun FullScreenVideoDialog(
                     }
             )
 
-            // Close button
+            // Close button (Top-Left)
             IconButton(
                 onClick = onDismiss,
                 modifier = Modifier
@@ -151,6 +162,26 @@ fun FullScreenVideoDialog(
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "Close",
+                    tint = Color.White
+                )
+            }
+
+            // Download button (Top-Right)
+            IconButton(
+                onClick = {
+                    coroutineScope.launch {
+                        saveVideoToMovies(context, videoUrl, message, channelId)
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .size(40.dp)
+                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Download,
+                    contentDescription = "Download Video",
                     tint = Color.White
                 )
             }
@@ -225,6 +256,81 @@ fun FullScreenVideoDialog(
                         fontWeight = FontWeight.Medium
                     )
                 }
+            }
+        }
+    }
+}
+
+private suspend fun saveVideoToMovies(
+    context: android.content.Context,
+    videoUrl: String,
+    message: com.example.kchat.model.Message?,
+    channelId: String?
+) {
+    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val sourceFile: java.io.File? = if (message?.mediaEncrypted == true && channelId != null) {
+                com.example.kchat.crypto.EncryptedMediaManager.getOrDecryptVideoFile(context, channelId, message)
+            } else {
+                val resolved = VaultMediaManager.resolveMediaUrl(videoUrl) ?: videoUrl
+                val tempDownload = java.io.File(context.cacheDir, "temp_download_vid_${System.currentTimeMillis()}.mp4")
+                try {
+                    val conn = java.net.URL(resolved).openConnection()
+                    conn.connectTimeout = 15000
+                    conn.readTimeout = 30000
+                    conn.getInputStream().use { input ->
+                        java.io.FileOutputStream(tempDownload).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    tempDownload
+                } catch (e: Exception) {
+                    tempDownload.delete()
+                    null
+                }
+            }
+
+            if (sourceFile == null || !sourceFile.exists() || sourceFile.length() == 0L) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    Toast.makeText(context, "Failed to prepare video for saving", Toast.LENGTH_SHORT).show()
+                }
+                return@withContext
+            }
+
+            val filename = "kchat_video_${System.currentTimeMillis()}.mp4"
+            val resolver = context.contentResolver
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Video.Media.DISPLAY_NAME, filename)
+                put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/KChat")
+                    put(MediaStore.Video.Media.IS_PENDING, 1)
+                }
+            }
+
+            val videoUri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, contentValues)
+            if (videoUri != null) {
+                resolver.openOutputStream(videoUri)?.use { out ->
+                    java.io.FileInputStream(sourceFile).use { input ->
+                        input.copyTo(out)
+                    }
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    contentValues.clear()
+                    contentValues.put(MediaStore.Video.Media.IS_PENDING, 0)
+                    resolver.update(videoUri, contentValues, null, null)
+                }
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    Toast.makeText(context, "Video saved to Movies/KChat", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    Toast.makeText(context, "Failed to save video: storage error", Toast.LENGTH_SHORT).show()
+                }
+            }
+        } catch (e: Exception) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                Toast.makeText(context, "Failed to save video: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }

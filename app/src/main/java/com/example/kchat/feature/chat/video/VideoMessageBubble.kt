@@ -74,6 +74,7 @@ fun VideoMessageBubble(
     var resolvedVideoUrl by remember(videoUrl) {
         mutableStateOf<String?>(if (!VaultMediaManager.isVaultUrl(videoUrl)) videoUrl else VaultMediaManager.getCachedUrlOnly(videoUrl))
     }
+    var localDecryptedPath by remember(message?.id) { mutableStateOf<String?>(null) }
 
     val currentPlayingUrl by videoPlayerHelper.currentPlayingUrl.collectAsState()
     val isPlaying by videoPlayerHelper.isPlaying.collectAsState()
@@ -82,7 +83,9 @@ fun VideoMessageBubble(
     val isBuffering by videoPlayerHelper.isBuffering.collectAsState()
     val hasError by videoPlayerHelper.hasError.collectAsState()
 
-    val isThisActive = currentPlayingUrl == videoUrl || (resolvedVideoUrl != null && currentPlayingUrl == resolvedVideoUrl)
+    val isThisActive = currentPlayingUrl == videoUrl ||
+        (resolvedVideoUrl != null && currentPlayingUrl == resolvedVideoUrl) ||
+        (localDecryptedPath != null && currentPlayingUrl == localDecryptedPath)
     val isThisPlaying = isThisActive && isPlaying
 
     val effectiveTotalDuration = if (isThisActive && activeDurationMs > 0L) {
@@ -101,9 +104,22 @@ fun VideoMessageBubble(
 
     val context = androidx.compose.ui.platform.LocalContext.current
     var thumbnail by remember(videoUrl) { mutableStateOf<Bitmap?>(null) }
-    LaunchedEffect(videoUrl) {
+    LaunchedEffect(videoUrl, message?.id) {
         if (message?.mediaEncrypted != true) {
             thumbnail = VideoThumbnailLoader.loadThumbnail(videoUrl, context)
+        } else if (message.id.isNotBlank()) {
+            val cachedDec = java.io.File(context.noBackupFilesDir, "temp_dec_video_${message.id}.mp4")
+            if (cachedDec.exists() && cachedDec.length() > 0L) {
+                localDecryptedPath = cachedDec.absolutePath
+                if (thumbnail == null) {
+                    try {
+                        val retriever = android.media.MediaMetadataRetriever()
+                        retriever.setDataSource(cachedDec.absolutePath)
+                        thumbnail = retriever.getFrameAtTime(0, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                        retriever.release()
+                    } catch (_: Exception) {}
+                }
+            }
         }
     }
 
@@ -126,6 +142,7 @@ fun VideoMessageBubble(
                         if (message?.mediaEncrypted == true && channelId != null) {
                             val decFile = com.example.kchat.crypto.EncryptedMediaManager.getOrDecryptVideoFile(context, channelId, message)
                             if (decFile != null) {
+                                localDecryptedPath = decFile.absolutePath
                                 videoPlayerHelper.togglePlayPause(decFile.absolutePath, durationMs)
                             }
                         } else {

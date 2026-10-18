@@ -86,7 +86,7 @@ fun SmartReplyBottomSheet(
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
-                        text = "KChat Smart Reply",
+                        text = "Smart Reply",
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold

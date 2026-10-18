@@ -40,6 +40,10 @@ class SignInViewModel @Inject constructor() : ViewModel() {
                         userRef.addListenerForSingleValueEvent(object : ValueEventListener {
                             override fun onDataChange(snapshot: DataSnapshot) {
                                 val hasProfile = snapshot.child("email").exists() || snapshot.child("name").exists()
+                                val userEmail = firebaseUser.email ?: ""
+                                if (userEmail.isNotEmpty()) {
+                                    db.reference.child("user_private").child(uid).child("email").setValue(userEmail)
+                                }
                                 if (hasProfile) {
                                     // EXISTING KCHAT USER:
                                     // Preserve existing username, profile photo, about, etc.
@@ -52,7 +56,7 @@ class SignInViewModel @Inject constructor() : ViewModel() {
 
                                     val userData = mapOf(
                                         "name" to finalUsername,
-                                        "email" to (firebaseUser.email ?: ""),
+                                        "email" to userEmail,
                                         "imageUrl" to finalImageUrl
                                     )
 

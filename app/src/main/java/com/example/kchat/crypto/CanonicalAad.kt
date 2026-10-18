@@ -14,7 +14,7 @@ object CanonicalAad {
     private const val PROTOCOL_HEADER = "KCHAT-AAD-V1"
     private const val DELIMITER: Byte = 0x00
 
-    val VALID_MEDIA_TYPES = setOf("image", "video", "audio", "file", "document")
+    val VALID_MEDIA_TYPES = setOf("image", "video", "audio", "file", "document", "text")
 
     /**
      * Builds the exact canonical AAD byte sequence.

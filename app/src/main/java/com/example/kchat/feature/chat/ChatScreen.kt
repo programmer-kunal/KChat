@@ -34,6 +34,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -161,6 +164,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.colorResource
@@ -176,6 +180,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.kchat.R
+import com.example.kchat.KChat
+import com.example.kchat.AppID
+import com.example.kchat.AppSign
 import com.example.kchat.feature.home.ChannelItem
 import com.example.kchat.feature.home.HomeChannel
 import com.example.kchat.model.Message
@@ -239,62 +246,119 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
         // --- Unified Pending Attachments State ---
         var pendingAttachments by remember { mutableStateOf<List<AttachmentItem>>(emptyList()) }
 
+        DisposableEffect(channelId) {
+            com.example.kchat.KChat.currentlyActiveChannelId = channelId
+            Log.d("NotificationDebug", "ChatScreen active: currentlyActiveChannelId set to $channelId")
+            onDispose {
+                if (com.example.kchat.KChat.currentlyActiveChannelId == channelId) {
+                    com.example.kchat.KChat.currentlyActiveChannelId = null
+                    Log.d("NotificationDebug", "ChatScreen disposed: currentlyActiveChannelId cleared")
+                }
+            }
+        }
+
         DisposableEffect(Unit) {
             onDispose {
                 audioPlayerHelper.release()
                 audioRecorderHelper.cancelRecording()
                 videoPlayerHelper.release()
-                pausedAudioFile?.delete()
+                val toDelete = pausedAudioFile
                 pausedAudioFile = null
+                toDelete?.let { file ->
+                    coroutineScope.launch(Dispatchers.IO) {
+                        try { file.delete() } catch (e: Exception) {}
+                    }
+                }
             }
         }
 
         val viewModel:ChatViewModel= hiltViewModel()
+        val hideKeyboardController = LocalSoftwareKeyboardController.current
+        val focusManager = LocalFocusManager.current
         var showAttachmentSheet by remember { mutableStateOf(false) }
-        val cameraImageUri=remember{
-            mutableStateOf<Uri?>(null)
-        }
+        val cameraImageUri = remember { mutableStateOf<Uri?>(null) }
+        val cameraImageFile = remember { mutableStateOf<File?>(null) }
         var replyingToMessage by remember { mutableStateOf<Message?>(null) }
-        val cameraImageLauncher=rememberLauncherForActivityResult(
+
+        fun copyImageUriToTempFile(ctx: Context, uri: Uri): File? {
+            return try {
+                val imageDir = File(ctx.cacheDir, "image_messages").apply { if (!exists()) mkdirs() }
+                val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.getDefault()).format(Date())
+                val tempFile = File.createTempFile("IMG_${timeStamp}_", ".jpg", imageDir)
+                ctx.contentResolver.openInputStream(uri)?.use { input ->
+                    tempFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                if (tempFile.exists() && tempFile.length() > 0L) {
+                    tempFile
+                } else {
+                    tempFile.delete()
+                    null
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        val cameraImageLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.TakePicture()
         ) { success ->
             if (success) {
-                cameraImageUri.value?.let { uri ->
+                val file = cameraImageFile.value
+                val uri = cameraImageUri.value
+                if (file != null && file.exists() && file.length() > 0L) {
                     pendingAttachments = pendingAttachments + AttachmentItem(
                         type = AttachmentType.IMAGE,
                         uri = uri,
+                        file = file,
+                        fileSizeBytes = file.length(),
                         isFromCamera = true
                     )
                 }
+            } else {
+                cameraImageFile.value?.delete()
+                cameraImageFile.value = null
             }
         }
-        val imageLauncher=rememberLauncherForActivityResult(
+        val imageLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.GetMultipleContents()
         ) { uris: List<Uri> ->
             if (uris.isNotEmpty()) {
-                val newItems = uris.map { uri ->
-                    AttachmentItem(
-                        type = AttachmentType.IMAGE,
-                        uri = uri
-                    )
+                coroutineScope.launch {
+                    val newItems = mutableListOf<AttachmentItem>()
+                    for (uri in uris) {
+                        val tempFile = copyImageUriToTempFile(context, uri)
+                        newItems.add(
+                            AttachmentItem(
+                                type = AttachmentType.IMAGE,
+                                uri = uri,
+                                file = tempFile,
+                                fileSizeBytes = tempFile?.length() ?: 0L
+                            )
+                        )
+                    }
+                    if (newItems.isNotEmpty()) {
+                        pendingAttachments = pendingAttachments + newItems
+                    }
                 }
-                pendingAttachments = pendingAttachments + newItems
             }
         }
         fun createImageUri(): Uri {
             val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val storageDir=
-                ContextCompat.getExternalFilesDirs(
-                    navController.context,
-                    Environment.DIRECTORY_PICTURES
-                ).first()
-            return FileProvider.getUriForFile(
+            val storageDir = ContextCompat.getExternalFilesDirs(
+                navController.context,
+                Environment.DIRECTORY_PICTURES
+            ).first()
+            val file = File.createTempFile("JPEG_${timeStamp}_", ".jpg", storageDir)
+            cameraImageFile.value = file
+            val fileUri = FileProvider.getUriForFile(
                 navController.context,
                 "${navController.context.packageName}.provider",
-                File.createTempFile("JPEG_${timeStamp}_", ".jpg", storageDir).apply{
-                    cameraImageUri.value=Uri.fromFile(this)
-                }
+                file
             )
+            cameraImageUri.value = fileUri
+            return fileUri
         }
         val permissionLauncher=
             rememberLauncherForActivityResult(contract =ActivityResultContracts.RequestPermission()){isGranted->
@@ -497,19 +561,25 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
         }
 
         BackHandler(enabled = pendingAttachments.isNotEmpty() && fullScreenVideoUrl == null) {
-            for (item in pendingAttachments) {
-                if (item.file != null && (item.isFromCamera || item.type == AttachmentType.VIDEO || item.type == AttachmentType.DOCUMENT)) {
-                    try { item.file.delete() } catch (e: Exception) {}
+            val toDelete = pendingAttachments
+            pendingAttachments = emptyList()
+            coroutineScope.launch(Dispatchers.IO) {
+                for (item in toDelete) {
+                    if (item.file != null && (item.isFromCamera || item.type == AttachmentType.VIDEO || item.type == AttachmentType.DOCUMENT || item.type == AttachmentType.IMAGE)) {
+                        try { item.file.delete() } catch (e: Exception) {}
+                    }
                 }
             }
-            pendingAttachments = emptyList()
         }
 
         BackHandler(enabled = pausedAudioFile != null && pendingAttachments.isEmpty() && fullScreenVideoUrl == null) {
             audioPlayerHelper.stop()
-            pausedAudioFile?.delete()
+            val fileToDelete = pausedAudioFile
             pausedAudioFile = null
             pausedAudioDurationMs = 0L
+            coroutineScope.launch(Dispatchers.IO) {
+                try { fileToDelete?.delete() } catch (e: Exception) {}
+            }
         }
 
         BackHandler(enabled = isRecordingAudio && !hasActiveOverlay) {
@@ -518,6 +588,12 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
 
         BackHandler(enabled = selectedMessages.isNotEmpty() && !hasActiveOverlay) {
             selectedMessages = emptyList()
+        }
+
+        BackHandler(enabled = !hasActiveOverlay && selectedMessages.isEmpty() && !isRecordingAudio) {
+            hideKeyboardController?.hide()
+            focusManager.clearFocus()
+            navController.popBackStack()
         }
 
         val currentUid = Firebase.auth.currentUser?.uid ?: return@Scaffold
@@ -626,7 +702,7 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
             LaunchedEffect(channelId) {
                 viewModel.listenForMessages(channelId)
             }
-            LaunchedEffect(messages.value) {
+            LaunchedEffect(messages.value.size) {
                 if (messages.value.isNotEmpty()) {
                     viewModel.markMessagesAsRead(channelId)
                 }
@@ -729,6 +805,11 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
             }
 
             ChatMessages(
+                onBack = {
+                    hideKeyboardController?.hide()
+                    focusManager.clearFocus()
+                    navController.popBackStack()
+                },
                 messages = messages.value,
                 selectedMessages = selectedMessages,
                 isDirectChat = isDirectChat,
@@ -748,6 +829,7 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
                     }
                 },
                 onAiMenuClicked = {
+                    hideKeyboardController?.hide()
                     showAiMenuSheet = true
                 },
                 otherUserImage = if (isSelfChat) null else if (isDirectChat) otherUserImage else if (channelId == HomeViewModel.WORLD_CHAT_ID) null else groupImageUrl,
@@ -780,6 +862,7 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
                     replyingToMessage = null
                 },
                 onImageClicked = {
+                    hideKeyboardController?.hide()
                     showAttachmentSheet = true
                 },
                 channelName = channelName,
@@ -817,6 +900,7 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
                 onSendAudioRecording = sendAudioAction,
                 onStartAudioRecording = startAudioRecordingAction,
                 audioPlayerHelper = audioPlayerHelper,
+                videoPlayerHelper = videoPlayerHelper,
                 onFullScreenVideoClick = { url, msg ->
                     fullScreenVideoUrl = url
                     fullScreenVideoMessage = msg
@@ -829,15 +913,24 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
                 onDismiss = { showAiMenuSheet = false },
                 onSmartReplyClicked = {
                     showAiMenuSheet = false
-                    if (selectedMessages.isNotEmpty()) {
-                        smartReplyViewModel.generateReplies(selectedMessages, currentUid)
-                        showSmartReplySheet = true
-                    } else {
+                    val meaningful = messages.value.filter { msg ->
+                        !msg.message.isNullOrBlank() ||
+                        !msg.imageUrl.isNullOrBlank() ||
+                        !msg.audioUrl.isNullOrBlank() ||
+                        !msg.videoUrl.isNullOrBlank() ||
+                        !msg.fileUrl.isNullOrBlank()
+                    }
+                    val hasOther = meaningful.any { it.senderId != currentUid }
+                    if (meaningful.isEmpty() || !hasOther) {
                         Toast.makeText(
                             context,
-                            "Select one or more messages to use Smart Reply.",
+                            "No recent conversation available to reply to.",
                             Toast.LENGTH_SHORT
                         ).show()
+                    } else {
+                        selectedMessages = emptyList()
+                        smartReplyViewModel.generateRepliesFromRecentContext(messages.value, currentUid)
+                        showSmartReplySheet = true
                     }
                 },
                 onThreadSummaryClicked = {
@@ -931,6 +1024,8 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
                 onRetry = {
                     if (selectedMessages.isNotEmpty()) {
                         smartReplyViewModel.generateReplies(selectedMessages, currentUid)
+                    } else {
+                        smartReplyViewModel.generateRepliesFromRecentContext(messages.value, currentUid)
                     }
                 }
             )
@@ -995,7 +1090,7 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
             AttachmentPreviewDialog(
                 attachments = pendingAttachments,
                 onRemoveItem = { itemToRemove ->
-                    if (itemToRemove.file != null && (itemToRemove.isFromCamera || itemToRemove.type == AttachmentType.VIDEO || itemToRemove.type == AttachmentType.DOCUMENT)) {
+                    if (itemToRemove.file != null && (itemToRemove.isFromCamera || itemToRemove.type == AttachmentType.VIDEO || itemToRemove.type == AttachmentType.DOCUMENT || itemToRemove.type == AttachmentType.IMAGE)) {
                         try { itemToRemove.file.delete() } catch (e: Exception) {}
                     }
                     pendingAttachments = pendingAttachments.filter { it.id != itemToRemove.id }
@@ -1013,7 +1108,7 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
                 },
                 onDismiss = {
                     for (item in pendingAttachments) {
-                        if (item.file != null && (item.isFromCamera || item.type == AttachmentType.VIDEO || item.type == AttachmentType.DOCUMENT)) {
+                        if (item.file != null && (item.isFromCamera || item.type == AttachmentType.VIDEO || item.type == AttachmentType.DOCUMENT || item.type == AttachmentType.IMAGE)) {
                             try { item.file.delete() } catch (e: Exception) {}
                         }
                     }
@@ -1043,17 +1138,15 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
 
                         when (item.type) {
                             AttachmentType.IMAGE -> {
-                                val uri = item.uri ?: item.file?.let { Uri.fromFile(it) }
-                                if (uri != null) {
-                                    viewModel.sendImageMessage(
-                                        uri = uri,
-                                        channelID = channelId,
-                                        channelName = channelName,
-                                        replyToMessageId = curReplyId,
-                                        replyToSenderName = curReplySender,
-                                        replyToMessageText = curReplyText
-                                    )
-                                }
+                                viewModel.sendImageMessage(
+                                    file = item.file,
+                                    uri = item.uri,
+                                    channelID = channelId,
+                                    channelName = channelName,
+                                    replyToMessageId = curReplyId,
+                                    replyToSenderName = curReplySender,
+                                    replyToMessageText = curReplyText
+                                )
                             }
                             AttachmentType.VIDEO -> {
                                 val file = item.file
@@ -1236,15 +1329,9 @@ fun ChatScreen(navController: NavController, channelId: String, channelName: Str
             )
         }
 
-        // --- World Chat Info Dialog ---
-        if (showProfileDialog && !isDirectChat && channelId == HomeViewModel.WORLD_CHAT_ID) {
-            WorldChatInfoDialog(
-                onDismissRequest = { showProfileDialog = false }
-            )
-        }
 
         // --- Custom Group Info Dialog ---
-        if (showProfileDialog && !isDirectChat && channelId != HomeViewModel.WORLD_CHAT_ID) {
+        if (showProfileDialog && !isDirectChat) {
             CustomGroupInfoDialog(
                 channelId = channelId,
                 channelName = channelName,
@@ -1266,6 +1353,7 @@ fun ChatMessages(
     channelName: String,
     channelID: String,
     isDirectChat: Boolean,
+    onBack: () -> Unit = {},
     messages: List<Message>,
     selectedMessages: List<Message>,
     onToggleMessageSelection: (Message) -> Unit,
@@ -1310,17 +1398,23 @@ fun ChatMessages(
     onFullScreenVideoClick: (String, Message) -> Unit = { _, _ -> }
 ){
     val context = LocalContext.current
+    val currentUid = remember { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "" }
+    val reversedMessages = remember(messages) { messages.asReversed() }
     val listState = rememberLazyListState()
+
     LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty() && targetScrollMessageId == null) {
-            listState.animateScrollToItem(messages.size - 1)
+        if (messages.isEmpty() || targetScrollMessageId != null) return@LaunchedEffect
+        val lastMsg = messages.lastOrNull()
+        val isMyMessage = lastMsg != null && lastMsg.senderId == currentUid
+        if (isMyMessage || listState.firstVisibleItemIndex <= 1) {
+            listState.animateScrollToItem(0)
         }
     }
 
-    LaunchedEffect(targetScrollMessageId, messages, isMessagesLoaded) {
+    LaunchedEffect(targetScrollMessageId, reversedMessages, isMessagesLoaded) {
         val targetId = targetScrollMessageId
         if (!targetId.isNullOrBlank()) {
-            val targetIndex = messages.indexOfFirst { it.id == targetId }
+            val targetIndex = reversedMessages.indexOfFirst { it.id == targetId }
             if (targetIndex != -1) {
                 listState.animateScrollToItem(targetIndex)
                 onHighlightMessage(targetId)
@@ -1341,7 +1435,6 @@ fun ChatMessages(
     val groupMemberUids by viewModel.groupMemberUids.collectAsState()
     var showMessageInfoDialog by remember { mutableStateOf(false) }
     var messageForInfo by remember { mutableStateOf<Message?>(null) }
-    val currentUid = remember { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "" }
     val directOtherUid = remember(channelID, isDirectChat, currentUid) {
         if (!isSelfChat && isDirectChat && channelID.contains("_") && !channelID.startsWith("-")) {
             channelID.split("_").firstOrNull { it != currentUid }
@@ -1354,7 +1447,7 @@ fun ChatMessages(
             return@LaunchedEffect
         }
         val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: return@LaunchedEffect
-        val currentEmail = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email ?: return@LaunchedEffect
+        val currentEmail = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email ?: "user_${currentUid.take(5)}@kchat.com"
 
         val isDirect = !channelID.startsWith("-") && channelID != HomeViewModel.WORLD_CHAT_ID && channelID.contains("_")
         if (isDirect) {
@@ -1366,13 +1459,11 @@ fun ChatMessages(
                 .child(otherUid)
                 .addListenerForSingleValueEvent(object : com.google.firebase.database.ValueEventListener {
                     override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
-                        val otherEmail = snapshot.child("email").getValue(String::class.java)
-                        val otherName = snapshot.child("name").getValue(String::class.java) ?: otherEmail ?: ""
-                        if (!otherEmail.isNullOrEmpty()) {
-                            invitees.clear()
-                            invitees.add(com.zegocloud.uikit.service.defines.ZegoUIKitUser(otherEmail, otherName))
-                            Log.d("NotificationDebug", "Pre-loaded call invitee: $otherEmail ($otherName)")
-                        }
+                        val otherEmail = snapshot.child("email").getValue(String::class.java)?.takeIf { it.isNotBlank() } ?: "user_${otherUid.take(5)}@kchat.com"
+                        val otherName = snapshot.child("name").getValue(String::class.java)?.takeIf { it.isNotBlank() } ?: otherEmail
+                        invitees.clear()
+                        invitees.add(com.zegocloud.uikit.service.defines.ZegoUIKitUser(otherEmail.take(32), otherName))
+                        Log.d("NotificationDebug", "Pre-loaded call invitee: $otherEmail ($otherName)")
                     }
                     override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
                 })
@@ -1631,27 +1722,31 @@ fun ChatMessages(
                     ) {
                         onClearSelection()
                     },
-                reverseLayout = false
+                reverseLayout = true
             ) {
-                itemsIndexed(messages, key = { _, message -> message.id }) { index, message ->
+                itemsIndexed(reversedMessages, key = { reversedIndex, message ->
+                    message.id.ifBlank { "${message.createdAt}_$reversedIndex" }
+                }) { reversedIndex, message ->
+                    val originalIndex = messages.size - 1 - reversedIndex
+
                     val shouldShowDateHeader = if (message.createdAt <= 0L) {
                         false
-                    } else if (index == 0) {
+                    } else if (originalIndex == 0) {
                         true
                     } else {
-                        val prevCreatedAt = messages[index - 1].createdAt
+                        val prevCreatedAt = messages[originalIndex - 1].createdAt
                         if (prevCreatedAt <= 0L) {
-                            val prevValid = messages.take(index).lastOrNull { it.createdAt > 0L }
+                            val prevValid = messages.take(originalIndex).lastOrNull { it.createdAt > 0L }
                             if (prevValid == null) true else !DateTimeUtils.isSameCalendarDay(prevValid.createdAt, message.createdAt)
                         } else {
                             !DateTimeUtils.isSameCalendarDay(prevCreatedAt, message.createdAt)
                         }
                     }
 
-                    val prevMessage = if (index > 0) messages[index - 1] else null
-                    val nextMessage = if (index < messages.size - 1) messages[index + 1] else null
+                    val prevMessage = if (originalIndex > 0) messages[originalIndex - 1] else null
+                    val nextMessage = if (originalIndex < messages.size - 1) messages[originalIndex + 1] else null
 
-                    val isFirstInGroup = if (index == 0 || shouldShowDateHeader) {
+                    val isFirstInGroup = if (originalIndex == 0 || shouldShowDateHeader) {
                         true
                     } else if (prevMessage == null) {
                         true
@@ -1684,7 +1779,7 @@ fun ChatMessages(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(
-                                top = if (shouldShowDateHeader) 0.dp else if (isFirstInGroup) (if (index == 0) 4.dp else 5.dp) else 1.5.dp,
+                                top = if (shouldShowDateHeader) 0.dp else if (isFirstInGroup) (if (originalIndex == 0) 4.dp else 5.dp) else 1.5.dp,
                                 bottom = if (isLastInGroup) 4.dp else 1.5.dp
                             )
                     ) {
@@ -1775,33 +1870,47 @@ fun ChatMessages(
                     else Modifier
                 )
                 .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.Bottom
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ){
                 IconButton(
                     onClick = {
-                        onComposerTextChange("")
+                        hideKeyboardController?.hide()
                         onImageClicked()
                     },
-                    modifier = Modifier.padding(bottom = 2.dp)
+                    modifier = Modifier.size(44.dp)
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.attach),
                         contentDescription = "attach",
-                        modifier = Modifier,
+                        modifier = Modifier.size(24.dp),
                         tint = if (isChatDark) colorResource(id = R.color.light_blue) else MaterialTheme.colorScheme.primary
                     )
                 }
-                Box(modifier = Modifier.padding(bottom = 2.dp)) {
-                    KChatAiEntryPoint(
-                        onClick = onAiMenuClicked
-                    )
+                KChatAiEntryPoint(
+                    onClick = {
+                        hideKeyboardController?.hide()
+                        onAiMenuClicked()
+                    },
+                    modifier = Modifier.size(44.dp)
+                )
+                val textFieldInteractionSource = remember { MutableInteractionSource() }
+                val textFieldFocusRequester = remember { FocusRequester() }
+                LaunchedEffect(textFieldInteractionSource) {
+                    textFieldInteractionSource.interactions.collect { interaction ->
+                        if (interaction is PressInteraction.Release) {
+                            hideKeyboardController?.show()
+                        }
+                    }
                 }
                 TextField(
                     value = composerText,
                     onValueChange = onComposerTextChange,
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(max = 130.dp),
+                        .heightIn(max = 130.dp)
+                        .focusRequester(textFieldFocusRequester),
+                    interactionSource = textFieldInteractionSource,
                     placeholder = { Text(text = "Type your message...", color = if (isChatDark) Color.LightGray else MaterialTheme.colorScheme.onSurfaceVariant)},
                     maxLines = 5,
                     minLines = 1,
@@ -1824,8 +1933,7 @@ fun ChatMessages(
                         onClick = {
                             onSendMessage(composerText)
                             onComposerTextChange("")
-                        },
-                        modifier = Modifier.padding(bottom = 2.dp)
+                        }
                     ){
                         Icon(
                             painter = painterResource(R.drawable.send),
@@ -1836,8 +1944,7 @@ fun ChatMessages(
                     }
                 } else {
                     IconButton(
-                        onClick = onStartAudioRecording,
-                        modifier = Modifier.padding(bottom = 2.dp)
+                        onClick = onStartAudioRecording
                     ){
                         Icon(
                             imageVector = Icons.Default.Mic,
@@ -2443,13 +2550,14 @@ fun ChatBubble(
                                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                                     )
                                 }
-                            } else if (!message.videoUrl.isNullOrBlank() && videoPlayerHelper != null) {
+                            } else if (!message.videoUrl.isNullOrBlank()) {
+                                val effectiveVideoPlayerHelper = videoPlayerHelper ?: remember { VideoPlayerHelper(coroutineScope) }
                                 VideoMessageBubble(
                                     videoUrl = message.videoUrl,
                                     durationMs = message.videoDurationMs ?: 0L,
                                     isCurrentUser = isCurrentUser,
                                     isInSelectionMode = isInSelectionMode,
-                                    videoPlayerHelper = videoPlayerHelper,
+                                    videoPlayerHelper = effectiveVideoPlayerHelper,
                                     onBubbleClick = onClick,
                                     onFullScreenClick = { url ->
                                         onFullScreenVideoClick(url, message)

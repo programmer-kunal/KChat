@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.kchat.R
+import com.example.kchat.VaultMediaManager
 import kotlinx.coroutines.launch
 
 @Composable
@@ -55,6 +56,11 @@ fun FileMessageBubble(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: ""
+    val messageKey = message?.id?.ifBlank { fileUrl } ?: fileUrl
+    var isDownloaded by remember(messageKey, currentUid) {
+        mutableStateOf(isCurrentUser || com.example.kchat.data.MediaDownloadTracker.isDownloaded(context, currentUid, messageKey, "doc"))
+    }
     var isLoading by remember { mutableStateOf(false) }
 
     val extLabel = FileUtils.getFileExtensionLabel(fileName, fileMimeType)
@@ -80,45 +86,138 @@ fun FileMessageBubble(
         if (isDark) Color.Black.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
     }
 
+    val openOrDownloadAction = {
+        if (isInSelectionMode) {
+            onBubbleClick()
+        } else if (!isLoading) {
+            coroutineScope.launch {
+                isLoading = true
+                try {
+                    val targetFile: java.io.File? = if (message?.mediaEncrypted == true && channelId != null) {
+                        com.example.kchat.crypto.EncryptedMediaManager.getOrDecryptDocumentFile(context, channelId, message)
+                    } else {
+                        // For unencrypted, check cache or download
+                        val resolved = VaultMediaManager.resolveMediaUrl(fileUrl) ?: fileUrl
+                        val safeName = fileName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                        val localFile = java.io.File(context.noBackupFilesDir, "temp_dec_doc_${messageKey}_$safeName")
+                        if (localFile.exists() && localFile.length() > 0L) {
+                            localFile
+                        } else {
+                            try {
+                                val conn = java.net.URL(resolved).openConnection()
+                                conn.connectTimeout = 15000
+                                conn.readTimeout = 30000
+                                conn.getInputStream().use { input ->
+                                    java.io.FileOutputStream(localFile).use { output ->
+                                        input.copyTo(output)
+                                    }
+                                }
+                                localFile
+                            } catch (e: Exception) {
+                                localFile.delete()
+                                null
+                            }
+                        }
+                    }
+
+                    if (targetFile != null && targetFile.exists() && targetFile.length() > 0L) {
+                        com.example.kchat.data.MediaDownloadTracker.setDownloaded(context, currentUid, messageKey, "doc", true)
+                        isDownloaded = true
+
+                        val effectiveMime = if (!fileMimeType.isNullOrBlank() && fileMimeType != "application/octet-stream") {
+                            fileMimeType
+                        } else {
+                            val ext = (fileName.ifBlank { targetFile.name }).substringAfterLast('.', "").lowercase(java.util.Locale.ROOT)
+                            when (ext) {
+                                "pdf" -> "application/pdf"
+                                "doc" -> "application/msword"
+                                "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                "xls" -> "application/vnd.ms-excel"
+                                "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                "ppt" -> "application/vnd.ms-powerpoint"
+                                "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                                "txt" -> "text/plain"
+                                "zip" -> "application/zip"
+                                "csv" -> "text/csv"
+                                "jpg", "jpeg" -> "image/jpeg"
+                                "png" -> "image/png"
+                                else -> android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "*/*"
+                            }
+                        }
+
+                        val contentUri = try {
+                            androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.provider", targetFile)
+                        } catch (e: Exception) {
+                            val cacheDocDir = java.io.File(context.cacheDir, "documents").apply { if (!exists()) mkdirs() }
+                            val cacheFile = java.io.File(cacheDocDir, targetFile.name)
+                            targetFile.copyTo(cacheFile, overwrite = true)
+                            androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.provider", cacheFile)
+                        }
+
+                        val viewIntent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                            setDataAndType(contentUri, effectiveMime)
+                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+
+                        // Explicitly grant read URI permission to all packages matching this intent
+                        val pm = context.packageManager
+                        val resolveInfoList = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                            pm.queryIntentActivities(
+                                android.content.Intent(android.content.Intent.ACTION_VIEW).apply { setDataAndType(contentUri, effectiveMime) },
+                                android.content.pm.PackageManager.ResolveInfoFlags.of(android.content.pm.PackageManager.MATCH_DEFAULT_ONLY.toLong())
+                            )
+                        } else {
+                            pm.queryIntentActivities(
+                                android.content.Intent(android.content.Intent.ACTION_VIEW).apply { setDataAndType(contentUri, effectiveMime) },
+                                android.content.pm.PackageManager.MATCH_DEFAULT_ONLY
+                            )
+                        }
+
+                        for (resolveInfo in resolveInfoList) {
+                            val pkg = resolveInfo.activityInfo.packageName
+                            try {
+                                context.grantUriPermission(pkg, contentUri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            } catch (_: Exception) {}
+                        }
+
+                        try {
+                            context.startActivity(viewIntent)
+                        } catch (_: android.content.ActivityNotFoundException) {
+                            val fallbackIntent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                setDataAndType(contentUri, "*/*")
+                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            val chooser = android.content.Intent.createChooser(fallbackIntent, "Open document with").apply {
+                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            try {
+                                context.startActivity(chooser)
+                            } catch (_: android.content.ActivityNotFoundException) {
+                                android.widget.Toast.makeText(context, "No app found to open this document", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    } else {
+                        android.widget.Toast.makeText(context, "Download failed, tap to retry", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("FileMessageBubble", "Failed to open document: ${e.message}")
+                    android.widget.Toast.makeText(context, "Failed to open document: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                } finally {
+                    isLoading = false
+                }
+            }
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(cardBg)
-            .clickable {
-                if (isInSelectionMode) {
-                    onBubbleClick()
-                } else if (!isLoading) {
-                    coroutineScope.launch {
-                        if (message?.mediaEncrypted == true && channelId != null) {
-                            isLoading = true
-                            try {
-                                val decFile = com.example.kchat.crypto.EncryptedMediaManager.getOrDecryptDocumentFile(context, channelId, message)
-                                if (decFile != null) {
-                                    val contentUri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.provider", decFile)
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                                        setDataAndType(contentUri, fileMimeType ?: "application/octet-stream")
-                                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    context.startActivity(android.content.Intent.createChooser(intent, "Open with"))
-                                }
-                            } catch (e: Exception) {
-                                android.util.Log.e("FileMessageBubble", "Failed to open encrypted file: ${e.message}")
-                            } finally {
-                                isLoading = false
-                            }
-                        } else {
-                            FileUtils.openFile(
-                                context = context,
-                                fileUrl = fileUrl,
-                                fileName = fileName,
-                                mimeType = fileMimeType,
-                                onLoadingChange = { isLoading = it }
-                            )
-                        }
-                    }
-                }
-            }
+            .clickable { openOrDownloadAction() }
             .padding(8.dp)
     ) {
         Row(
@@ -169,30 +268,39 @@ fun FileMessageBubble(
                 }
             }
 
-            Spacer(modifier = Modifier.width(6.dp))
-
-            // Action: Loading spinner or Download/Open icon
-            if (isLoading) {
+            // Receiver-only download option: shown only when not yet downloaded
+            if (!isCurrentUser && !isDownloaded) {
+                Spacer(modifier = Modifier.width(6.dp))
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = iconTint,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(20.dp)
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(iconBgColor)
+                            .clickable { openOrDownloadAction() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = "Download file",
+                            tint = iconTint,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            } else if (isLoading) {
+                Spacer(modifier = Modifier.width(6.dp))
                 CircularProgressIndicator(
                     color = iconTint,
                     strokeWidth = 2.dp,
                     modifier = Modifier.size(20.dp)
                 )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(iconBgColor),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Download,
-                        contentDescription = "Open file",
-                        tint = iconTint,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
             }
         }
     }

@@ -35,6 +35,9 @@ class AudioPlayerHelper(
     private val _currentPlayingUrl = MutableStateFlow<String?>(null)
     val currentPlayingUrl: StateFlow<String?> = _currentPlayingUrl.asStateFlow()
 
+    private val _currentCacheKey = MutableStateFlow<String?>(null)
+    val currentCacheKey: StateFlow<String?> = _currentCacheKey.asStateFlow()
+
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
@@ -121,6 +124,7 @@ class AudioPlayerHelper(
         stop()
 
         _currentPlayingUrl.value = url
+        _currentCacheKey.value = cacheKey
         _durationMs.value = defaultDurationMs
         _currentPositionMs.value = 0L
 
@@ -142,7 +146,14 @@ class AudioPlayerHelper(
                         .setUsage(AudioAttributes.USAGE_MEDIA)
                         .build()
                 )
-                setDataSource(dataSourceToUse)
+                if (dataSourceToUse.startsWith("/")) {
+                    val file = File(dataSourceToUse)
+                    java.io.FileInputStream(file).use { fis ->
+                        setDataSource(fis.fd)
+                    }
+                } else {
+                    setDataSource(dataSourceToUse)
+                }
                 setOnPreparedListener { mp ->
                     try {
                         val realDuration = mp.duration.toLong()
@@ -241,6 +252,7 @@ class AudioPlayerHelper(
         mediaPlayer = null
         _isPlaying.value = false
         _currentPlayingUrl.value = null
+        _currentCacheKey.value = null
         _currentPositionMs.value = 0L
         _durationMs.value = 0L
     }

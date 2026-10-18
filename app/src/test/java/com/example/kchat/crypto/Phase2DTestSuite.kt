@@ -146,9 +146,10 @@ class Phase2DTestSuite {
         val firstRetrieval = GroupSenderKeyManager.getOrDeriveMediaKey(channelId, epochId, senderUid, 2)
         assertNotNull("First retrieval of skipped key must succeed", firstRetrieval)
 
-        // Second retrieval of the exact same skipped key must fail / be consumed
-        val replayAttempt = GroupSenderKeyManager.getOrDeriveMediaKey(channelId, epochId, senderUid, 2)
-        assertNull("Consumed skipped keys must not be reusable (replay protection)", replayAttempt)
+        // Subsequent retrieval re-uses cached derived key so scrolling/reopening chat re-renders properly
+        val cachedRetrieval = GroupSenderKeyManager.getOrDeriveMediaKey(channelId, epochId, senderUid, 2)
+        assertNotNull("Subsequent retrieval must succeed using derived key cache for re-render", cachedRetrieval)
+        assertArrayEquals("Cached key must match first retrieval", firstRetrieval, cachedRetrieval)
     }
 
     @Test

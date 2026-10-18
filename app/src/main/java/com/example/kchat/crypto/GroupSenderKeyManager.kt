@@ -57,6 +57,10 @@ object GroupSenderKeyManager {
     // Key: "channelId:epochId:senderUid:index" -> true
     private val consumedIndexes = ConcurrentHashMap<String, Boolean>()
 
+    // In-memory cache of derived media keys for fast re-render / scroll / chat re-entry
+    // Key: "channelId:epochId:senderUid:index" -> mediaKey
+    private val derivedKeyCache = ConcurrentHashMap<String, ByteArray>()
+
     private val secureRandom = SecureRandom()
 
     /**
@@ -156,37 +160,44 @@ object GroupSenderKeyManager {
     ): ByteArray? {
         val indexKey = "$channelId:$epochId:$senderUid:$targetIndex"
 
-        // 1. Replay Protection: Check if already consumed
+        // 1. In-memory derived key cache (enables re-rendering / scroll / chat re-entry)
+        val cached = derivedKeyCache[indexKey]
+        if (cached != null) {
+            return cached
+        }
+
+        // 2. Replay Protection: Check if already consumed without being in cache
         if (consumedIndexes[indexKey] == true) {
             return null
         }
 
-        // 2. Check Skipped Keys cache
+        // 3. Check Skipped Keys cache
         pruneExpiredSkippedKeys()
         val skipped = skippedKeys.remove(indexKey)
         if (skipped != null) {
             if (System.currentTimeMillis() <= skipped.expiresAtMs) {
                 consumedIndexes[indexKey] = true
+                derivedKeyCache[indexKey] = skipped.mediaKey
                 return skipped.mediaKey
             }
         }
 
-        // 3. Check Receiver Session
+        // 4. Check Receiver Session
         val sessionKey = "$channelId:$epochId:$senderUid"
         val session = receiverSessions[sessionKey] ?: return null
 
-        // 4. If targetIndex < currentIndex, message is from the past and missing from skipped cache -> Reject
+        // 5. If targetIndex < currentIndex, message is from the past and missing from skipped cache -> Reject
         if (targetIndex < session.currentIndex) {
             return null
         }
 
-        // 5. Gap validation: targetIndex > currentIndex + MAX_GAP -> Reject / resync required
+        // 6. Gap validation: targetIndex > currentIndex + MAX_GAP -> Reject / resync required
         val gap = targetIndex - session.currentIndex
         if (gap > MAX_GAP) {
             return null
         }
 
-        // 6. Derive intermediate skipped keys
+        // 7. Derive intermediate skipped keys
         val senderPrefix = "$channelId:$epochId:$senderUid:"
         val currentSenderSkippedCount = skippedKeys.keys.count { it.startsWith(senderPrefix) }
 
@@ -206,12 +217,13 @@ object GroupSenderKeyManager {
             }
         }
 
-        // 7. Derive the target key
+        // 8. Derive the target key
         val (targetMediaKey, nextChainKey) = ratchetStep(session.chainKey)
         session.chainKey = nextChainKey
         session.currentIndex = targetIndex + 1
 
         consumedIndexes[indexKey] = true
+        derivedKeyCache[indexKey] = targetMediaKey
         return targetMediaKey
     }
 
@@ -254,5 +266,6 @@ object GroupSenderKeyManager {
         receiverSessions.clear()
         skippedKeys.clear()
         consumedIndexes.clear()
+        derivedKeyCache.clear()
     }
 }

@@ -75,6 +75,27 @@ object MediaEncryptor {
     }
 
     /**
+     * Encrypts UTF-8 text string with AES-256-GCM and returns Base64 ciphertext.
+     */
+    fun encryptText(plaintext: String, key: ByteArray, aad: ByteArray): String {
+        require(key.size == 32) { "Key must be exactly 32 bytes (256-bit)" }
+        val cipher = AesGcmJce(key)
+        val ciphertext = cipher.encrypt(plaintext.toByteArray(Charsets.UTF_8), aad)
+        return java.util.Base64.getEncoder().encodeToString(ciphertext)
+    }
+
+    /**
+     * Decrypts Base64 ciphertext with AES-256-GCM and returns UTF-8 text string.
+     */
+    fun decryptText(ciphertextB64: String, key: ByteArray, aad: ByteArray): String {
+        require(key.size == 32) { "Key must be exactly 32 bytes (256-bit)" }
+        val cipher = AesGcmJce(key)
+        val ciphertextBytes = java.util.Base64.getDecoder().decode(ciphertextB64)
+        val decrypted = cipher.decrypt(ciphertextBytes, aad)
+        return String(decrypted, Charsets.UTF_8)
+    }
+
+    /**
      * Streams encryption of large media (> 5 MB, <= 50 MB) using Tink Streaming AEAD (4 KB chunks).
      * Memory usage is constant (< 256 KB) regardless of file size.
      */

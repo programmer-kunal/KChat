@@ -24,7 +24,7 @@ import kotlinx.coroutines.delay
 fun SplashScreen(navController: NavController) {
 
     LaunchedEffect(Unit) {
-        delay(2000)
+        delay(500)
 
         val currentUser = Firebase.auth.currentUser
         if (currentUser == null) {
@@ -32,15 +32,20 @@ fun SplashScreen(navController: NavController) {
                 popUpTo("splash") { inclusive = true }
             }
         } else {
-            currentUser.reload().addOnCompleteListener {
-                val isVerified = currentUser.isEmailVerified
-                if (isVerified) {
+            currentUser.reload().addOnCompleteListener { reloadTask ->
+                val isGoogleUser = currentUser.providerData.any { it.providerId == "google.com" }
+                if (isGoogleUser || currentUser.isEmailVerified) {
                     navController.navigate("home") {
                         popUpTo("splash") { inclusive = true }
                     }
-                } else {
+                } else if (reloadTask.isSuccessful && !currentUser.isEmailVerified) {
                     Firebase.auth.signOut()
                     navController.navigate("login") {
+                        popUpTo("splash") { inclusive = true }
+                    }
+                } else {
+                    // Network error or timeout during reload - preserve persistent login
+                    navController.navigate("home") {
                         popUpTo("splash") { inclusive = true }
                     }
                 }

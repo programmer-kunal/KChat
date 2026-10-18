@@ -27,7 +27,7 @@ fun MainApp(startChannelId: String? = null, startChannelName: String? = null){
         val currentUser= FirebaseAuth.getInstance().currentUser
         
         val hasDeepLink = !startChannelId.isNullOrEmpty() && !startChannelName.isNullOrEmpty()
-        val startDest = if (currentUser != null && currentUser.isEmailVerified && hasDeepLink) "home" else "splash"
+        val startDest = if (currentUser != null && hasDeepLink) "home" else "splash"
         
         Log.d("NotificationDebug", "MainApp startDestination selected: startDest=$startDest (hasDeepLink=$hasDeepLink)")
 
@@ -72,8 +72,8 @@ fun MainApp(startChannelId: String? = null, startChannelName: String? = null){
 
         // Auto-navigate if started via notification metadata
         LaunchedEffect(startChannelId, startChannelName) {
-            Log.d("NotificationDebug", "LaunchedEffect triggered. startChannelId=$startChannelId, startChannelName=$startChannelName, userVerified=${currentUser != null && currentUser.isEmailVerified}")
-            if (currentUser != null && currentUser.isEmailVerified && !startChannelId.isNullOrEmpty() && !startChannelName.isNullOrEmpty()) {
+            Log.d("NotificationDebug", "LaunchedEffect triggered. startChannelId=$startChannelId, startChannelName=$startChannelName, userLoggedIn=${currentUser != null}")
+            if (currentUser != null && !startChannelId.isNullOrEmpty() && !startChannelName.isNullOrEmpty()) {
                 Log.d("NotificationDebug", "LaunchedEffect conditions PASSED. Navigating to: chat/$startChannelId&$startChannelName")
                 
                 val currentRoute = navController.currentDestination?.route

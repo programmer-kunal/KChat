@@ -62,8 +62,8 @@ android {
         applicationId = "com.kunal.kchat"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -74,10 +74,29 @@ android {
         buildConfigField("String", "RECAPTCHA_ENTERPRISE_SITE_KEY", "\"$recaptchaSiteKey\"")
     }
 
+    val releaseKeyFile = rootProject.file("kchat-release-key.jks")
+    val releaseStorePassword = getSecretProperty("RELEASE_STORE_PASSWORD")
+    val releaseKeyPassword = getSecretProperty("RELEASE_KEY_PASSWORD")
+    val releaseKeyAlias = getSecretProperty("RELEASE_KEY_ALIAS")
+
+    signingConfigs {
+        create("release") {
+            if (releaseKeyFile.exists() && releaseStorePassword.isNotBlank()) {
+                storeFile = releaseKeyFile
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            if (releaseKeyFile.exists() && releaseStorePassword.isNotBlank()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -130,6 +149,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.text)
     implementation(libs.volley)
     testImplementation(libs.junit)
+    testImplementation("org.json:json:20240303")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

@@ -17,9 +17,11 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -64,16 +66,28 @@ fun AudioMessageBubble(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val currentPlayingUrl by audioPlayerHelper.currentPlayingUrl.collectAsState()
+    val currentCacheKey by audioPlayerHelper.currentCacheKey.collectAsState()
     val isPlaying by audioPlayerHelper.isPlaying.collectAsState()
     val currentPositionMs by audioPlayerHelper.currentPositionMs.collectAsState()
     val activeDurationMs by audioPlayerHelper.durationMs.collectAsState()
 
     val coroutineScope = rememberCoroutineScope()
+    val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: ""
+    val messageKey = message?.id?.ifBlank { audioUrl } ?: audioUrl
+    var isDownloaded by remember(messageKey, currentUid) {
+        mutableStateOf(isCurrentUser || com.example.kchat.data.MediaDownloadTracker.isDownloaded(context, currentUid, messageKey, "audio"))
+    }
+    var isDownloading by remember { mutableStateOf(false) }
+
     var resolvedAudioUrl by remember(audioUrl) {
         mutableStateOf<String?>(if (!VaultMediaManager.isVaultUrl(audioUrl)) audioUrl else VaultMediaManager.getCachedUrlOnly(audioUrl))
     }
+    var localDecryptedPath by remember(message?.id) { mutableStateOf<String?>(null) }
 
-    val isThisActive = currentPlayingUrl == audioUrl || (resolvedAudioUrl != null && currentPlayingUrl == resolvedAudioUrl)
+    val isThisActive = currentPlayingUrl == audioUrl ||
+        (resolvedAudioUrl != null && currentPlayingUrl == resolvedAudioUrl) ||
+        (currentCacheKey != null && currentCacheKey == audioUrl) ||
+        (localDecryptedPath != null && currentPlayingUrl == localDecryptedPath)
     val isThisPlaying = isThisActive && isPlaying
 
     val effectiveTotalDuration = if (isThisActive && activeDurationMs > 0L) {
@@ -90,11 +104,9 @@ fun AudioMessageBubble(
         0f
     }
 
-    val displayTimeText = if (isThisActive && currentPositionMs > 0L) {
-        AudioUtils.formatDuration(currentPositionMs)
-    } else {
-        AudioUtils.formatDuration(effectiveTotalDuration)
-    }
+    val currentFormatted = AudioUtils.formatDuration(if (isThisActive) currentPositionMs else 0L)
+    val totalFormatted = AudioUtils.formatDuration(effectiveTotalDuration)
+    val displayTimeText = "$currentFormatted / $totalFormatted"
 
     // Color theme matching KChat's design system
     val isDark = MaterialTheme.colorScheme.background == com.example.kchat.ui.theme.KChatDarkBackground
@@ -116,7 +128,7 @@ fun AudioMessageBubble(
             .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Play / Pause Circle Button
+        // Play / Pause / Download Circle Button
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -128,18 +140,67 @@ fun AudioMessageBubble(
                 ) {
                     if (isInSelectionMode) {
                         onBubbleClick()
+                    } else if (!isCurrentUser && !isDownloaded) {
+                        if (!isDownloading) {
+                            coroutineScope.launch {
+                                isDownloading = true
+                                try {
+                                    val decFile: java.io.File? = if (message?.mediaEncrypted == true && channelId != null) {
+                                        com.example.kchat.crypto.EncryptedMediaManager.getOrDecryptAudioFile(context, channelId, message)
+                                    } else {
+                                        val resolved = VaultMediaManager.resolveMediaUrl(audioUrl) ?: audioUrl
+                                        val tempFile = java.io.File(context.noBackupFilesDir, "temp_dec_audio_${messageKey}.m4a")
+                                        if (tempFile.exists() && tempFile.length() > 0L) {
+                                            tempFile
+                                        } else {
+                                            try {
+                                                val conn = java.net.URL(resolved).openConnection()
+                                                conn.connectTimeout = 15000
+                                                conn.readTimeout = 30000
+                                                conn.getInputStream().use { input ->
+                                                    java.io.FileOutputStream(tempFile).use { output ->
+                                                        input.copyTo(output)
+                                                    }
+                                                }
+                                                tempFile
+                                            } catch (e: Exception) {
+                                                tempFile.delete()
+                                                null
+                                            }
+                                        }
+                                    }
+
+                                    if (decFile != null && decFile.exists() && decFile.length() > 0L) {
+                                        localDecryptedPath = decFile.absolutePath
+                                        com.example.kchat.data.MediaDownloadTracker.setDownloaded(context, currentUid, messageKey, "audio", true)
+                                        isDownloaded = true
+                                    } else {
+                                        android.widget.Toast.makeText(context, "Download failed, tap to retry", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    android.widget.Toast.makeText(context, "Download failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                                } finally {
+                                    isDownloading = false
+                                }
+                            }
+                        }
+                    } else if (isThisPlaying) {
+                        audioPlayerHelper.pause()
+                    } else if (isThisActive) {
+                        audioPlayerHelper.resume()
                     } else {
                         coroutineScope.launch {
                             if (message?.mediaEncrypted == true && channelId != null) {
                                 val decFile = com.example.kchat.crypto.EncryptedMediaManager.getOrDecryptAudioFile(context, channelId, message)
                                 if (decFile != null) {
-                                    audioPlayerHelper.togglePlayPause(decFile.absolutePath, durationMs, cacheKey = audioUrl)
+                                    localDecryptedPath = decFile.absolutePath
+                                    audioPlayerHelper.play(decFile.absolutePath, durationMs, cacheKey = audioUrl)
                                 }
                             } else {
                                 val urlToPlay = resolvedAudioUrl ?: VaultMediaManager.resolveMediaUrl(audioUrl)
                                 resolvedAudioUrl = urlToPlay
                                 if (urlToPlay != null) {
-                                    audioPlayerHelper.togglePlayPause(urlToPlay, durationMs, cacheKey = audioUrl)
+                                    audioPlayerHelper.play(urlToPlay, durationMs, cacheKey = audioUrl)
                                 }
                             }
                         }
@@ -147,12 +208,29 @@ fun AudioMessageBubble(
                 },
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = if (isThisPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = if (isThisPlaying) "Pause voice message" else "Play voice message",
-                tint = playButtonIconTint,
-                modifier = Modifier.size(20.dp)
-            )
+            if (!isCurrentUser && !isDownloaded) {
+                if (isDownloading) {
+                    CircularProgressIndicator(
+                        color = playButtonIconTint,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(18.dp)
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = "Download voice message",
+                        tint = playButtonIconTint,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            } else {
+                Icon(
+                    imageVector = if (isThisPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (isThisPlaying) "Pause voice message" else "Play voice message",
+                    tint = playButtonIconTint,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
 
         Spacer(modifier = Modifier.width(8.dp))
@@ -173,6 +251,7 @@ fun AudioMessageBubble(
                                 if (message?.mediaEncrypted == true && channelId != null) {
                                     val decFile = com.example.kchat.crypto.EncryptedMediaManager.getOrDecryptAudioFile(context, channelId, message)
                                     if (decFile != null) {
+                                        localDecryptedPath = decFile.absolutePath
                                         audioPlayerHelper.play(decFile.absolutePath, durationMs, cacheKey = audioUrl)
                                         audioPlayerHelper.seekTo(seekTarget)
                                     }

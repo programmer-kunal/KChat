@@ -1,6 +1,15 @@
 package com.example.kchat.feature.chat
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.example.kchat.crypto.EncryptedMediaManager
+import com.example.kchat.data.cache.LocalDataCache
 import com.example.kchat.model.Message
 import com.example.kchat.model.MessagePreviewCalculator
 import com.example.kchat.model.User
@@ -8,15 +17,20 @@ import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.database.*
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 
 @HiltViewModel
-class DirectChatViewModel @Inject constructor() : ViewModel() {
+class DirectChatViewModel @Inject constructor(
+    @ApplicationContext val context: Context
+) : ViewModel() {
 
     private val db = Firebase.database
+    private var saveDirectChatsJob: Job? = null
+    private val friendshipStartMap = mutableMapOf<String, Long>()
 
     private val _users = MutableStateFlow<List<DirectChatItem>>(emptyList())
     val users: StateFlow<List<DirectChatItem>> = _users.asStateFlow()
@@ -60,6 +74,7 @@ class DirectChatViewModel @Inject constructor() : ViewModel() {
 
     // Tracked per-chat message listeners: chatId -> ValueEventListener
     private val messageListeners = mutableMapOf<String, ValueEventListener>()
+    private val messageQueries = mutableMapOf<String, com.google.firebase.database.Query>()
 
     // Internal tracking state
     private var activeUid: String? = null
@@ -74,6 +89,18 @@ class DirectChatViewModel @Inject constructor() : ViewModel() {
         startListeners()
     }
 
+    private fun updateUsersList() {
+        val sorted = directChatItemsMap.values.sortedByDescending { it.lastTime }
+        _users.value = sorted
+        activeUid?.let { uid ->
+            saveDirectChatsJob?.cancel()
+            saveDirectChatsJob = viewModelScope.launch {
+                delay(500L)
+                LocalDataCache.saveDirectChats(uid, sorted)
+            }
+        }
+    }
+
     fun startListeners() {
         val currentUid = Firebase.auth.currentUser?.uid ?: return
         if (activeUid == currentUid) {
@@ -86,6 +113,15 @@ class DirectChatViewModel @Inject constructor() : ViewModel() {
         }
 
         activeUid = currentUid
+
+        // Restore cached direct chats immediately for instant cold-start display
+        viewModelScope.launch {
+            val cached = LocalDataCache.loadDirectChats(currentUid)
+            if (cached.isNotEmpty() && _users.value.isEmpty()) {
+                cached.forEach { directChatItemsMap[it.uid] = it }
+                _users.value = cached
+            }
+        }
 
         listenForDeletedMessages(currentUid)
         listenForChatHidden(currentUid)
@@ -120,16 +156,20 @@ class DirectChatViewModel @Inject constructor() : ViewModel() {
                 _deletedMessages.value = map
 
                 // Re-evaluate any chats that have cached message snapshots
-                var changed = false
-                for ((friendUid, chatId) in friendChatIdMap) {
-                    val snap = latestMessageSnapshots[chatId] ?: continue
-                    val profile = friendProfiles[friendUid] ?: continue
-                    val item = processMessageSnapshot(friendUid, chatId, profile.first, profile.second, snap)
-                    directChatItemsMap[friendUid] = item
-                    changed = true
-                }
-                if (changed) {
-                    _users.value = directChatItemsMap.values.sortedByDescending { it.lastTime }
+                viewModelScope.launch(Dispatchers.IO) {
+                    var changed = false
+                    for ((friendUid, chatId) in friendChatIdMap) {
+                        val snap = latestMessageSnapshots[chatId] ?: continue
+                        val profile = friendProfiles[friendUid] ?: continue
+                        val item = processMessageSnapshot(friendUid, chatId, profile.first, profile.second, snap)
+                        directChatItemsMap[friendUid] = item
+                        changed = true
+                    }
+                    if (changed) {
+                        withContext(Dispatchers.Main) {
+                            updateUsersList()
+                        }
+                    }
                 }
             }
 
@@ -165,17 +205,29 @@ class DirectChatViewModel @Inject constructor() : ViewModel() {
     // Step 4B-2: Deduplicated friends listener; Step 4B-4: Reconciled friend & message listeners
     private fun listenForFriends(uid: String) {
         val ref = db.reference.child("friends").child(uid)
+        ref.keepSynced(true)
         friendsRef = ref
 
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val currentFriendIds = snapshot.children.mapNotNull { it.key }.toSet()
+                val currentFriendIds = mutableSetOf<String>()
+                snapshot.children.forEach { child ->
+                    val fUid = child.key ?: return@forEach
+                    currentFriendIds.add(fUid)
+                    val startTime: Long = when (val v = child.value) {
+                        is Number -> v.toLong()
+                        else -> 0L
+                    }
+                    friendshipStartMap[fUid] = startTime
+                }
                 _friendIds.value = currentFriendIds.toList()
 
                 // Step 4B-4 Rule 3: Immediately detach message listener for removed friends
                 val removedFriendIds = friendChatIdMap.keys - currentFriendIds
                 for (removedUid in removedFriendIds) {
+                    friendshipStartMap.remove(removedUid)
                     val chatId = friendChatIdMap.remove(removedUid) ?: getChatId(uid, removedUid)
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance().unsubscribeFromTopic("direct_$chatId")
                     val msgListener = messageListeners.remove(chatId)
                     if (msgListener != null) {
                         db.reference.child("messages").child(chatId).removeEventListener(msgListener)
@@ -186,13 +238,14 @@ class DirectChatViewModel @Inject constructor() : ViewModel() {
                     inFlightFriends.remove(removedUid)
                 }
                 if (removedFriendIds.isNotEmpty()) {
-                    _users.value = directChatItemsMap.values.sortedByDescending { it.lastTime }
+                    updateUsersList()
                 }
 
                 // Step 4B-4 Rules 1 & 2: Reuse existing listeners, attach exactly one for new friends
                 for (friendUid in currentFriendIds) {
                     val chatId = getChatId(uid, friendUid)
                     friendChatIdMap[friendUid] = chatId
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("direct_$chatId")
 
                     if (messageListeners.containsKey(chatId) || inFlightFriends.contains(friendUid)) {
                         continue
@@ -212,15 +265,25 @@ class DirectChatViewModel @Inject constructor() : ViewModel() {
                                 friendProfiles[friendUid] = Pair(name, imageUrl)
 
                                 if (!directChatItemsMap.containsKey(friendUid)) {
-                                    directChatItemsMap[friendUid] = DirectChatItem(
-                                        uid = friendUid,
-                                        name = name,
-                                        imageUrl = imageUrl,
-                                        lastMessage = null,
-                                        lastTime = 0L,
-                                        unreadCount = 0
-                                    )
-                                    _users.value = directChatItemsMap.values.sortedByDescending { it.lastTime }
+                                    viewModelScope.launch(Dispatchers.IO) {
+                                        val existingSnap = latestMessageSnapshots[chatId]
+                                        val item = if (existingSnap != null) {
+                                            processMessageSnapshot(friendUid, chatId, name, imageUrl, existingSnap)
+                                        } else {
+                                            DirectChatItem(
+                                                uid = friendUid,
+                                                name = name,
+                                                imageUrl = imageUrl,
+                                                lastMessage = null,
+                                                lastTime = 0L,
+                                                unreadCount = 0
+                                            )
+                                        }
+                                        withContext(Dispatchers.Main) {
+                                            directChatItemsMap[friendUid] = item
+                                            updateUsersList()
+                                        }
+                                    }
                                 }
 
                                 attachMessageListener(friendUid, chatId, name, imageUrl)
@@ -250,26 +313,31 @@ class DirectChatViewModel @Inject constructor() : ViewModel() {
             return
         }
 
-        val msgRef = db.reference.child("messages").child(chatId)
+        val query = db.reference.child("messages").child(chatId).limitToLast(50)
         val msgListener = object : ValueEventListener {
             override fun onDataChange(msgSnap: DataSnapshot) {
                 latestMessageSnapshots[chatId] = msgSnap
-                val currentProfile = friendProfiles[friendUid]
-                val friendName = currentProfile?.first ?: name
-                val friendImage = currentProfile?.second ?: imageUrl
-                val item = processMessageSnapshot(friendUid, chatId, friendName, friendImage, msgSnap)
-                directChatItemsMap[friendUid] = item
-                _users.value = directChatItemsMap.values.sortedByDescending { it.lastTime }
+                viewModelScope.launch(Dispatchers.IO) {
+                    val currentProfile = friendProfiles[friendUid]
+                    val friendName = currentProfile?.first ?: name
+                    val friendImage = currentProfile?.second ?: imageUrl
+                    val item = processMessageSnapshot(friendUid, chatId, friendName, friendImage, msgSnap)
+                    withContext(Dispatchers.Main) {
+                        directChatItemsMap[friendUid] = item
+                        updateUsersList()
+                    }
+                }
             }
 
             override fun onCancelled(error: DatabaseError) {}
         }
 
+        messageQueries[chatId] = query
         messageListeners[chatId] = msgListener
-        msgRef.addValueEventListener(msgListener)
+        query.addValueEventListener(msgListener)
     }
 
-    private fun processMessageSnapshot(
+    private suspend fun processMessageSnapshot(
         friendUid: String,
         chatId: String,
         name: String,
@@ -277,21 +345,34 @@ class DirectChatViewModel @Inject constructor() : ViewModel() {
         msgSnap: DataSnapshot
     ): DirectChatItem {
         val uid = activeUid ?: ""
+        val boundary = friendshipStartMap[friendUid] ?: 0L
         val messages = msgSnap.children.mapNotNull { child ->
-            val msg = child.getValue(Message::class.java)
-            if (uid.isNotEmpty() && msg != null && msg.senderId.isNotEmpty() && msg.senderId != uid && msg.deliveredBy?.get(uid) != true) {
+            val msg = child.getValue(Message::class.java) ?: return@mapNotNull null
+            if (boundary > 0L && msg.createdAt < boundary) {
+                return@mapNotNull null
+            }
+            if (uid.isNotEmpty() && msg.senderId.isNotEmpty() && msg.senderId != uid && msg.deliveredBy?.get(uid) != true) {
                 child.ref.child("deliveredBy").child(uid).setValue(true)
+                child.ref.child("deliveredAt").child(uid).setValue(System.currentTimeMillis())
             }
             val key = child.key
-            if (msg != null && msg.id.isEmpty() && key != null) {
+            if (msg.id.isEmpty() && key != null) {
                 msg.copy(id = key)
             } else {
                 msg
             }
         }
 
+        val decryptedMessages = messages.map { msg ->
+            if (msg.textEncrypted == true) {
+                EncryptedMediaManager.decryptTextMessage(context, chatId, msg)
+            } else {
+                msg
+            }
+        }
+
         val summary = MessagePreviewCalculator.calculate(
-            messages = messages,
+            messages = decryptedMessages,
             currentUserId = uid,
             deletedMessageIds = deletedMessagesMap[chatId] ?: emptySet(),
             photoLabel = "Photo"
@@ -404,16 +485,17 @@ class DirectChatViewModel @Inject constructor() : ViewModel() {
 
     fun acceptFriendRequest(senderUid: String) {
         val currentUid = Firebase.auth.currentUser?.uid ?: return
+        val now = System.currentTimeMillis()
 
         db.reference.child("friends")
             .child(currentUid)
             .child(senderUid)
-            .setValue(true)
+            .setValue(now)
 
         db.reference.child("friends")
             .child(senderUid)
             .child(currentUid)
-            .setValue(true)
+            .setValue(now)
 
         db.reference.child("friend_requests")
             .child(currentUid)
@@ -490,9 +572,11 @@ class DirectChatViewModel @Inject constructor() : ViewModel() {
 
         // 7. all nested messages/{chatId} listeners
         for ((chatId, listener) in messageListeners) {
-            db.reference.child("messages").child(chatId).removeEventListener(listener)
+            val query = messageQueries[chatId]
+            query?.removeEventListener(listener) ?: db.reference.child("messages").child(chatId).removeEventListener(listener)
         }
         messageListeners.clear()
+        messageQueries.clear()
 
         // 8. in-memory tracking state
         directChatItemsMap.clear()

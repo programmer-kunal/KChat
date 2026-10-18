@@ -108,7 +108,7 @@ fun SignInScreen(navController: NavController) {
         }
     }
 
-    val isDark = MaterialTheme.colorScheme.background == Color(0xFF162542)
+    val isDark = MaterialTheme.colorScheme.background == com.example.kchat.ui.theme.KChatDarkBackground
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -132,7 +132,7 @@ fun SignInScreen(navController: NavController) {
                 // 1. KChat Logo
                 Image(
                     painter = painterResource(id = R.drawable.logo),
-                    contentDescription = "KChat Logo",
+                    contentDescription = "K Chat Logo",
                     modifier = Modifier.size(118.dp),
                     contentScale = ContentScale.Fit
                 )
@@ -141,7 +141,7 @@ fun SignInScreen(navController: NavController) {
 
                 // 2. Branding: Title & Subtitle
                 Text(
-                    text = "KChat",
+                    text = "K Chat",
                     fontSize = 30.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
@@ -150,7 +150,7 @@ fun SignInScreen(navController: NavController) {
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "AI That Understands Your Conversations.",
+                    text = "Make Messaging Smarter.",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary,
@@ -161,7 +161,7 @@ fun SignInScreen(navController: NavController) {
 
                 // 3. Information Description
                 Text(
-                    text = "KChat is an AI-powered intelligent real-time communication platform designed to make conversations smarter, more meaningful, and secure.",
+                    text = "K Chat is an AI-powered intelligent real-time communication platform designed to make conversations smarter, more meaningful, and secure.",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -241,8 +241,8 @@ fun SignInScreen(navController: NavController) {
                             googleSignInLauncher.launch(googleSignInClient.signInIntent)
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isDark) Color.DarkGray else MaterialTheme.colorScheme.surface,
-                            contentColor = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.onSurface
                         ),
                         border = if (!isDark) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
                         shape = RoundedCornerShape(30.dp),
@@ -266,7 +266,7 @@ fun SignInScreen(navController: NavController) {
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(
                                 text = "Login with Google",
-                                color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp
                             )

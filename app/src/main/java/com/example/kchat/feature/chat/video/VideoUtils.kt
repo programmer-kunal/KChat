@@ -70,7 +70,8 @@ object VideoUtils {
             val retriever = MediaMetadataRetriever()
             retriever.setDataSource(file.absolutePath)
             val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-            val durationMs = durationStr?.toLongOrNull() ?: 0L
+            val parsedDuration = durationStr?.toLongOrNull() ?: 0L
+            val durationMs = if (parsedDuration > 0L) parsedDuration else 1000L
             val thumbnail = retriever.frameAtTime
             retriever.release()
             VideoMetadata(
@@ -80,7 +81,15 @@ object VideoUtils {
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to extract metadata from file: ${file.absolutePath}", e)
-            null
+            if (file.exists() && file.length() > 0L) {
+                VideoMetadata(
+                    durationMs = 1000L,
+                    fileSizeBytes = file.length(),
+                    thumbnail = null
+                )
+            } else {
+                null
+            }
         }
     }
 

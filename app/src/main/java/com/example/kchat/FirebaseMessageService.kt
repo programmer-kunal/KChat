@@ -13,6 +13,26 @@ import java.util.Random
 
 class FirebaseMessageService : FirebaseMessagingService() {
 
+    companion object {
+        // Cache recently displayed messageIds to prevent duplicate notifications (e.g., from dual-delivery or network retry)
+        private val processedMessageIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+        private val messageIdQueue = java.util.concurrent.ConcurrentLinkedQueue<String>()
+        private const val MAX_PROCESSED_MESSAGES = 200
+
+        private fun recordAndCheckDuplicate(messageId: String): Boolean {
+            if (!processedMessageIds.add(messageId)) {
+                return true // duplicate
+            }
+            messageIdQueue.add(messageId)
+            if (messageIdQueue.size > MAX_PROCESSED_MESSAGES) {
+                messageIdQueue.poll()?.let { oldest ->
+                    processedMessageIds.remove(oldest)
+                }
+            }
+            return false // new message
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -39,21 +59,29 @@ class FirebaseMessageService : FirebaseMessagingService() {
         }
 
         val messageId = message.data["messageId"]
+        if (!messageId.isNullOrEmpty()) {
+            if (recordAndCheckDuplicate(messageId)) {
+                Log.d("FCM_PROOF", "Duplicate FCM message detected for messageId=$messageId. Suppressing duplicate notification.")
+                return
+            }
+        }
+
         val senderId = message.data["senderId"]
         val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+            ?: getSharedPreferences("kchat_user_prefs", android.content.Context.MODE_PRIVATE).getString("current_uid", null)
 
         if (senderId != null && senderId == currentUid) {
             return
         }
 
         // Record message delivery reliably in RTDB for direct and custom group chats (excluding World Chat to prevent write amplification)
-        if (currentUid != null && channelId != "world_chat") {
+        if (currentUid != null && channelId != "world_chat" && channelId != "worldchat") {
             markMessageAsDelivered(channelId, messageId)
         }
 
-        // Suppress normal chat message notifications if the app is already in the foreground
+        // Suppress message notifications across all screens whenever KChat is actively in foreground
         if (KChat.isAppInForeground) {
-            Log.d("FCM_PROOF", "App is in foreground. Suppressing normal chat message notification to let UI handle it natively.")
+            Log.d("FCM_PROOF", "KChat is currently in foreground. Suppressing message notification across all screens.")
             return
         }
 
@@ -79,7 +107,7 @@ class FirebaseMessageService : FirebaseMessagingService() {
         val senderImage = message.data["senderImage"]
         val channelName = message.data["channelName"]
         var rawMessageText = message.data["messageText"] ?: body
-        val isGroupChat = channelId.startsWith("-") || channelId == "world_chat" || !channelId.contains("_")
+        val isGroupChat = channelId.startsWith("-") || channelId == "world_chat" || channelId == "worldchat" || !channelId.contains("_")
         if (isGroupChat && !senderName.isNullOrEmpty() && rawMessageText != null) {
             val prefix = "$senderName: "
             if (rawMessageText.startsWith(prefix)) {
@@ -122,7 +150,7 @@ class FirebaseMessageService : FirebaseMessagingService() {
         val safeTitle = title ?: "New Message"
         val safeMessage = message ?: ""
 
-        val isGroup = channelId != null && (channelId.startsWith("-") || channelId == "world_chat" || !channelId.contains("_"))
+        val isGroup = channelId != null && (channelId.startsWith("-") || channelId == "world_chat" || channelId == "worldchat" || !channelId.contains("_"))
         val groupName = if (isGroup) {
             channelName?.takeIf { it.isNotBlank() }
                 ?: title?.takeIf { it.isNotBlank() && it != "New Message" && it != "Group Chat" }
@@ -241,7 +269,14 @@ class FirebaseMessageService : FirebaseMessagingService() {
         Log.d("FCM_PROOF", "onNewToken EXECUTED with token: $token")
 
         val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+            ?: getSharedPreferences("kchat_user_prefs", android.content.Context.MODE_PRIVATE).getString("current_uid", null)
         if (uid != null) {
+            // Primary secure location: user_private/$uid/fcmToken
+            com.google.firebase.database.FirebaseDatabase.getInstance().getReference("user_private")
+                .child(uid)
+                .child("fcmToken")
+                .setValue(token)
+            // Backward compatibility: also write to users/$uid/fcmToken
             com.google.firebase.database.FirebaseDatabase.getInstance().getReference("users")
                 .child(uid)
                 .child("fcmToken")
@@ -261,7 +296,9 @@ class FirebaseMessageService : FirebaseMessagingService() {
     }
 
     private fun markMessageAsDelivered(channelId: String, messageId: String?) {
-        val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+            ?: getSharedPreferences("kchat_user_prefs", android.content.Context.MODE_PRIVATE).getString("current_uid", null)
+            ?: return
         val dbRef = com.google.firebase.database.FirebaseDatabase.getInstance().reference
             .child("messages").child(channelId)
 
@@ -280,5 +317,41 @@ class FirebaseMessageService : FirebaseMessagingService() {
                 override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
             })
         }
+    }
+
+    private fun isSameConversation(
+        activeChannelId: String?,
+        incomingChannelId: String?,
+        senderId: String? = null,
+        currentUid: String? = null
+    ): Boolean {
+        if (activeChannelId.isNullOrBlank() || incomingChannelId.isNullOrBlank()) return false
+        val active = activeChannelId.trim()
+        val incoming = incomingChannelId.trim()
+        if (active.equals(incoming, ignoreCase = true)) return true
+
+        // Direct chat comparison: order-independent canonical check (e.g. uid1_uid2 vs uid2_uid1)
+        val isDirectActive = active.contains("_") && !active.startsWith("-") && !active.startsWith("self_chat_") && active != "world_chat" && active != "worldchat"
+        val isDirectIncoming = incoming.contains("_") && !incoming.startsWith("-") && !incoming.startsWith("self_chat_") && incoming != "world_chat" && incoming != "worldchat"
+
+        if (isDirectActive && isDirectIncoming) {
+            val activeParts = active.split("_")
+            val incomingParts = incoming.split("_")
+            if (activeParts.size == 2 && incomingParts.size == 2) {
+                if (activeParts.sorted() == incomingParts.sorted()) {
+                    return true
+                }
+            }
+        }
+
+        // Direct chat participant fallback: if active direct chat contains both senderId and currentUid
+        if (isDirectActive && !senderId.isNullOrBlank() && !currentUid.isNullOrBlank()) {
+            val activeParts = active.split("_").toSet()
+            if (activeParts.size == 2 && activeParts.contains(senderId) && activeParts.contains(currentUid)) {
+                return true
+            }
+        }
+
+        return false
     }
 }

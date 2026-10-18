@@ -161,26 +161,8 @@ fun MessageInfoDialog(
 
                         // SECTIONS BASED ON CHAT TYPE
                         if (effectiveIsSelfChat) {
-                            // SELF-CHAT: Immediately Read (KKK) - No group/external recipients
-                            // Delivered Section
-                            item {
-                                SectionHeader(
-                                    title = "Delivered",
-                                    status = MessageReceiptStatus.READ,
-                                    tint = MessageReceiptColors.Delivered
-                                )
-                            }
-                            item {
-                                MemberReceiptItem(
-                                    name = "You",
-                                    profileImage = currentUserProfile?.profileImage ?: Firebase.auth.currentUser?.photoUrl?.toString(),
-                                    status = MessageReceiptStatus.READ,
-                                    statusLabel = "Delivered",
-                                    statusColor = MessageReceiptColors.Delivered
-                                )
-                            }
-
-                            // Seen Section
+                            // SELF-CHAT: Immediately Read (KKK) - Seen first, Delivered second
+                            // 1. Seen Section
                             item {
                                 SectionHeader(
                                     title = "Seen",
@@ -194,7 +176,27 @@ fun MessageInfoDialog(
                                     profileImage = currentUserProfile?.profileImage ?: Firebase.auth.currentUser?.photoUrl?.toString(),
                                     status = MessageReceiptStatus.READ,
                                     statusLabel = "Read",
+                                    timestampText = DateTimeUtils.formatReceiptDateTime(message.createdAt),
                                     statusColor = MessageReceiptColors.Read
+                                )
+                            }
+
+                            // 2. Delivered Section
+                            item {
+                                SectionHeader(
+                                    title = "Delivered",
+                                    status = MessageReceiptStatus.READ,
+                                    tint = MessageReceiptColors.Delivered
+                                )
+                            }
+                            item {
+                                MemberReceiptItem(
+                                    name = "You",
+                                    profileImage = currentUserProfile?.profileImage ?: Firebase.auth.currentUser?.photoUrl?.toString(),
+                                    status = MessageReceiptStatus.READ,
+                                    statusLabel = "Delivered",
+                                    timestampText = DateTimeUtils.formatReceiptDateTime(message.createdAt),
+                                    statusColor = MessageReceiptColors.Delivered
                                 )
                             }
 
@@ -216,27 +218,10 @@ fun MessageInfoDialog(
                             }
                         } else if (isDirectChat) {
                             val recipient = infoData.directRecipient
+                            val isRead = recipient?.isRead == true
+                            val isDelivered = recipient?.isDelivered == true
 
-                            // Delivered Section
-                            item {
-                                SectionHeader(
-                                    title = "Delivered",
-                                    status = MessageReceiptStatus.DELIVERED,
-                                    tint = MessageReceiptColors.Delivered
-                                )
-                            }
-                            item {
-                                val isDelivered = recipient?.isDelivered == true
-                                MemberReceiptItem(
-                                    name = recipient?.name ?: "Recipient",
-                                    profileImage = recipient?.profileImage,
-                                    status = if (isDelivered) MessageReceiptStatus.DELIVERED else MessageReceiptStatus.SENT,
-                                    statusLabel = if (isDelivered) "Delivered" else "Not delivered",
-                                    statusColor = if (isDelivered) MessageReceiptColors.Delivered else Color.Gray
-                                )
-                            }
-
-                            // Seen Section
+                            // 1. Seen Section (First)
                             item {
                                 SectionHeader(
                                     title = "Seen",
@@ -245,18 +230,41 @@ fun MessageInfoDialog(
                                 )
                             }
                             item {
-                                val isRead = recipient?.isRead == true
-                                val isDelivered = recipient?.isDelivered == true
-                                val seenStatus = if (isRead) MessageReceiptStatus.READ
-                                else if (isDelivered) MessageReceiptStatus.DELIVERED
-                                else MessageReceiptStatus.SENT
+                                if (isRead) {
+                                    MemberReceiptItem(
+                                        name = recipient?.name ?: "Recipient",
+                                        profileImage = recipient?.profileImage,
+                                        status = MessageReceiptStatus.READ,
+                                        statusLabel = "Read",
+                                        timestampText = DateTimeUtils.formatReceiptDateTime(recipient?.readTimestamp),
+                                        statusColor = MessageReceiptColors.Read
+                                    )
+                                } else {
+                                    Text(
+                                        text = "1 remaining",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
 
+                            // 2. Delivered Section (Second)
+                            item {
+                                SectionHeader(
+                                    title = "Delivered",
+                                    status = MessageReceiptStatus.DELIVERED,
+                                    tint = MessageReceiptColors.Delivered
+                                )
+                            }
+                            item {
                                 MemberReceiptItem(
                                     name = recipient?.name ?: "Recipient",
                                     profileImage = recipient?.profileImage,
-                                    status = seenStatus,
-                                    statusLabel = if (isRead) "Read" else "Not read",
-                                    statusColor = if (isRead) MessageReceiptColors.Read else Color.Gray
+                                    status = if (isDelivered) MessageReceiptStatus.DELIVERED else MessageReceiptStatus.SENT,
+                                    statusLabel = if (isDelivered) "Delivered" else "Not delivered",
+                                    timestampText = if (isDelivered) DateTimeUtils.formatReceiptDateTime(recipient?.deliveredTimestamp) else null,
+                                    statusColor = if (isDelivered) MessageReceiptColors.Delivered else Color.Gray
                                 )
                             }
                         } else if (isWorldChat) {
@@ -320,45 +328,15 @@ fun MessageInfoDialog(
                         } else {
                             // CUSTOM GROUP CHAT
                             val recipients = infoData.groupRecipients
-                            val deliveredCount = recipients.count { it.isDelivered }
-                            val readCount = recipients.count { it.isRead }
+                            val seenUsers = recipients.filter { it.isRead }.sortedBy { it.name.lowercase() }
+                            val deliveredUsers = recipients.filter { it.isDelivered && !it.isRead }.sortedBy { it.name.lowercase() }
+                            val remainingCount = recipients.size - seenUsers.size
 
-                            // DELIVERED SECTION
-                            item {
-                                SectionHeader(
-                                    title = "Delivered",
-                                    subtitle = "($deliveredCount/${recipients.size})",
-                                    status = MessageReceiptStatus.DELIVERED,
-                                    tint = MessageReceiptColors.Delivered
-                                )
-                            }
-
-                            if (recipients.isEmpty()) {
-                                item {
-                                    Text(
-                                        text = "No other members in this group.",
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 13.sp,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
-                                    )
-                                }
-                            } else {
-                                items(recipients, key = { "del_${it.uid}" }) { member ->
-                                    MemberReceiptItem(
-                                        name = member.name,
-                                        profileImage = member.profileImage,
-                                        status = if (member.isDelivered) MessageReceiptStatus.DELIVERED else MessageReceiptStatus.SENT,
-                                        statusLabel = if (member.isDelivered) "Delivered" else "Not delivered",
-                                        statusColor = if (member.isDelivered) MessageReceiptColors.Delivered else Color.Gray
-                                    )
-                                }
-                            }
-
-                            // SEEN SECTION
+                            // 1. SEEN / READ SECTION (MUST ALWAYS APPEAR FIRST)
                             item {
                                 SectionHeader(
                                     title = "Seen",
-                                    subtitle = "($readCount/${recipients.size})",
+                                    subtitle = "(${seenUsers.size}/${recipients.size})",
                                     status = MessageReceiptStatus.READ,
                                     tint = MessageReceiptColors.Read
                                 )
@@ -374,18 +352,60 @@ fun MessageInfoDialog(
                                     )
                                 }
                             } else {
-                                items(recipients, key = { "seen_${it.uid}" }) { member ->
-                                    val seenStatus = if (member.isRead) MessageReceiptStatus.READ
-                                    else if (member.isDelivered) MessageReceiptStatus.DELIVERED
-                                    else MessageReceiptStatus.SENT
-
+                                items(seenUsers, key = { "seen_${it.uid}" }) { member ->
                                     MemberReceiptItem(
                                         name = member.name,
                                         profileImage = member.profileImage,
-                                        status = seenStatus,
-                                        statusLabel = if (member.isRead) "Read" else "Not read",
-                                        statusColor = if (member.isRead) MessageReceiptColors.Read else Color.Gray
+                                        status = MessageReceiptStatus.READ,
+                                        statusLabel = "Read",
+                                        timestampText = DateTimeUtils.formatReceiptDateTime(member.readTimestamp),
+                                        statusColor = MessageReceiptColors.Read
                                     )
+                                }
+
+                                if (remainingCount > 0) {
+                                    item {
+                                        Text(
+                                            text = "$remainingCount remaining",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 12.sp,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // 2. DELIVERED SECTION (MUST ALWAYS APPEAR SECOND)
+                            item {
+                                SectionHeader(
+                                    title = "Delivered",
+                                    subtitle = "(${deliveredUsers.size}/${recipients.size})",
+                                    status = MessageReceiptStatus.DELIVERED,
+                                    tint = MessageReceiptColors.Delivered
+                                )
+                            }
+
+                            if (recipients.isNotEmpty()) {
+                                if (deliveredUsers.isEmpty()) {
+                                    item {
+                                        Text(
+                                            text = if (seenUsers.size == recipients.size) "All members have read this message." else "No other delivered recipients yet.",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 12.sp,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                } else {
+                                    items(deliveredUsers, key = { "del_${it.uid}" }) { member ->
+                                        MemberReceiptItem(
+                                            name = member.name,
+                                            profileImage = member.profileImage,
+                                            status = MessageReceiptStatus.DELIVERED,
+                                            statusLabel = "Delivered",
+                                            timestampText = DateTimeUtils.formatReceiptDateTime(member.deliveredTimestamp),
+                                            statusColor = MessageReceiptColors.Delivered
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -504,6 +524,7 @@ private fun MemberReceiptItem(
     profileImage: String?,
     status: MessageReceiptStatus,
     statusLabel: String,
+    timestampText: String? = null,
     statusColor: Color
 ) {
     Row(
@@ -545,30 +566,41 @@ private fun MemberReceiptItem(
 
         Spacer(modifier = Modifier.width(10.dp))
 
-        // Name
-        Text(
-            text = name,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
+        // Name and Timestamp
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = name,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (!timestampText.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = timestampText,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // Receipt status: Text label + K / KK / KKK glyph (NO checkmarks!)
+        // Receipt status: Text label (if no timestamp) + K / KK / KKK glyph (NO checkmarks!)
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(
-                text = statusLabel,
-                color = if (statusColor != Color.Gray) statusColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp,
-                fontWeight = if (statusColor != Color.Gray) FontWeight.SemiBold else FontWeight.Normal
-            )
+            if (timestampText.isNullOrBlank() && statusLabel.isNotBlank()) {
+                Text(
+                    text = statusLabel,
+                    color = if (statusColor != Color.Gray) statusColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp,
+                    fontWeight = if (statusColor != Color.Gray) FontWeight.SemiBold else FontWeight.Normal
+                )
+            }
             KChatReceipt(
                 status = status,
                 tint = if (statusColor != Color.Gray) statusColor else MaterialTheme.colorScheme.onSurfaceVariant

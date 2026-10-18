@@ -7,6 +7,12 @@ import java.util.Locale
 
 object DateTimeUtils {
 
+    private val TIME_FORMATTER = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
+    private val DATE_FORMATTER_SHORT = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+    private val DATE_FORMATTER_LONG = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
+    private val CONVERSATION_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.getDefault())
+    private val DATE_HEADER_FORMATTER = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.getDefault())
+
     /**
      * Formats user presence status for direct chat.
      * - If [isOnline] is true: "online"
@@ -30,15 +36,13 @@ object DateTimeUtils {
             val today = now.atZone(zoneId).toLocalDate()
             val yesterday = today.minusDays(1)
 
-            val timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
-            val timeStr = lastSeenDateTime.format(timeFormatter)
+            val timeStr = lastSeenDateTime.format(TIME_FORMATTER)
 
             when (lastSeenDate) {
                 today -> "last seen today at $timeStr"
                 yesterday -> "last seen yesterday at $timeStr"
                 else -> {
-                    val datePattern = if (lastSeenDate.year == today.year) "d MMM" else "d MMM yyyy"
-                    val dateFormatter = DateTimeFormatter.ofPattern(datePattern, Locale.getDefault())
+                    val dateFormatter = if (lastSeenDate.year == today.year) DATE_FORMATTER_SHORT else DATE_FORMATTER_LONG
                     val dateStr = lastSeenDateTime.format(dateFormatter)
                     "last seen $dateStr at $timeStr"
                 }
@@ -61,8 +65,7 @@ object DateTimeUtils {
 
         return try {
             val dateTime = Instant.ofEpochMilli(timestamp).atZone(zoneId)
-            val timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
-            dateTime.format(timeFormatter)
+            dateTime.format(TIME_FORMATTER)
         } catch (e: Exception) {
             ""
         }
@@ -88,15 +91,9 @@ object DateTimeUtils {
             val yesterday = today.minusDays(1)
 
             when (date) {
-                today -> {
-                    val timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
-                    dateTime.format(timeFormatter)
-                }
+                today -> dateTime.format(TIME_FORMATTER)
                 yesterday -> "Yesterday"
-                else -> {
-                    val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.getDefault())
-                    dateTime.format(dateFormatter)
-                }
+                else -> dateTime.format(CONVERSATION_DATE_FORMATTER)
             }
         } catch (e: Exception) {
             ""
@@ -125,10 +122,7 @@ object DateTimeUtils {
             when (date) {
                 today -> "Today"
                 yesterday -> "Yesterday"
-                else -> {
-                    val dateFormatter = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.getDefault())
-                    dateTime.format(dateFormatter)
-                }
+                else -> dateTime.format(DATE_HEADER_FORMATTER)
             }
         } catch (e: Exception) {
             ""
@@ -166,6 +160,39 @@ object DateTimeUtils {
             "1 member online"
         } else {
             "$count members online"
+        }
+    }
+
+    private val RECEIPT_DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("d MMMM, HH:mm", Locale.getDefault())
+    private val RECEIPT_DATE_TIME_YEAR_FORMATTER = DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale.getDefault())
+
+    /**
+     * Formats receipt timestamp for Message Info (Read / Delivered timestamps).
+     * - Today: "2:15 PM"
+     * - Yesterday: "Yesterday, 2:15 PM"
+     * - Same year: "21 September, 22:02"
+     * - Older: "21 September 2025, 22:02"
+     */
+    fun formatReceiptDateTime(
+        timestamp: Long?,
+        now: Instant = Instant.now(),
+        zoneId: ZoneId = ZoneId.systemDefault()
+    ): String {
+        if (timestamp == null || timestamp <= 0L) return ""
+        return try {
+            val dateTime = Instant.ofEpochMilli(timestamp).atZone(zoneId)
+            val date = dateTime.toLocalDate()
+            val today = now.atZone(zoneId).toLocalDate()
+            val yesterday = today.minusDays(1)
+
+            when {
+                date == today -> dateTime.format(TIME_FORMATTER)
+                date == yesterday -> "Yesterday, ${dateTime.format(TIME_FORMATTER)}"
+                date.year == today.year -> dateTime.format(RECEIPT_DATE_TIME_FORMATTER)
+                else -> dateTime.format(RECEIPT_DATE_TIME_YEAR_FORMATTER)
+            }
+        } catch (e: Exception) {
+            ""
         }
     }
 }

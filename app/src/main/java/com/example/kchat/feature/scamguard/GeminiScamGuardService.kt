@@ -38,7 +38,7 @@ class GeminiScamGuardService @Inject constructor() : ScamGuardService {
                 return@runCatching ScamGuardResult(
                     riskLevel = ScamRiskLevel.LOW,
                     isSuspicious = false,
-                    summary = "No messages or screenshots provided for analysis.",
+                    summary = "No messages selected for analysis.",
                     indicators = emptyList(),
                     recommendedActions = listOf("Provide one or more messages or screenshots to evaluate potential scam or phishing risks.")
                 )
@@ -163,7 +163,12 @@ class GeminiScamGuardService @Inject constructor() : ScamGuardService {
         val riskLevelStr = json.optString("riskLevel", "LOW")
         val riskLevel = ScamRiskLevel.fromString(riskLevelStr)
         val isSuspicious = json.optBoolean("isSuspicious", riskLevel != ScamRiskLevel.LOW)
-        val summary = json.optString("summary", "").trim()
+        val defaultSummary = when (riskLevel) {
+            ScamRiskLevel.LOW -> "Normal conversation with no scam indicators detected."
+            ScamRiskLevel.MEDIUM -> "Potential scam indicators detected in the conversation."
+            ScamRiskLevel.HIGH -> "High risk scam or phishing patterns detected."
+        }
+        val summary = json.optString("summary", "").trim().ifBlank { defaultSummary }
 
         val indicatorsList = mutableListOf<String>()
         val indicatorsArray = json.optJSONArray("indicators")
@@ -181,6 +186,13 @@ class GeminiScamGuardService @Inject constructor() : ScamGuardService {
                 val item = actionsArray.optString(i, "").trim()
                 if (item.isNotBlank()) actionsList.add(item)
             }
+        }
+        if (actionsList.isEmpty()) {
+            actionsList.add(when (riskLevel) {
+                ScamRiskLevel.LOW -> "No action needed. Continue chatting normally."
+                ScamRiskLevel.MEDIUM -> "Exercise caution and verify the sender's identity."
+                ScamRiskLevel.HIGH -> "Do not share sensitive information or click external links."
+            })
         }
 
         return ScamGuardResult(

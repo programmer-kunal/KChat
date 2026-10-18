@@ -5,6 +5,14 @@
         name="cache"
         path="." />
 
+    <files-path
+        name="files"
+        path="." />
+
+    <no-backup-files-path
+        name="no_backup"
+        path="." />
+
     <external-path
         name="external_files"
         path="."/>

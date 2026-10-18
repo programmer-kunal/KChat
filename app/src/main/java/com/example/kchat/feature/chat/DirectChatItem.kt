@@ -1,4 +1,7 @@
 package com.example.kchat.feature.chat
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class DirectChatItem(
     val uid: String,
     val name: String,

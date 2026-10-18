@@ -62,6 +62,148 @@ object EncryptedMediaManager {
         val messageId: String
     )
 
+    data class EncryptedTextResult(
+        val cipherText: String,
+        val encryptedMetadata: String? = null,
+        val encryptedMediaKeys: Map<String, String>? = null,
+        val groupEpochId: Int? = null,
+        val senderKeyIndex: Int? = null
+    )
+
+    /**
+     * Encrypts a text message and optional metadata for Direct Chat or Group Chat.
+     */
+    suspend fun encryptTextMessage(
+        context: Context,
+        channelId: String,
+        messageId: String,
+        senderUid: String,
+        plaintext: String,
+        metadataJson: String? = null
+    ): EncryptedTextResult? = withContext(Dispatchers.IO) {
+        val isDirectChat = (channelId.contains("_") || channelId.startsWith("self_chat_")) && !channelId.startsWith("-")
+        val aad = CanonicalAad.build(channelId, messageId, "text")
+
+        try {
+            if (isDirectChat) {
+                val mediaKey = MediaEncryptor.generateMediaKey()
+                val cipherTextB64 = MediaEncryptor.encryptText(plaintext, mediaKey, aad)
+                val encMetadataB64 = if (!metadataJson.isNullOrBlank()) {
+                    MediaEncryptor.encryptText(metadataJson, mediaKey, aad)
+                } else null
+
+                val recipientUid = if (channelId.startsWith("self_chat_")) senderUid else channelId.split("_").firstOrNull { it != senderUid } ?: senderUid
+                val recipientDevices = DeviceKeyManager.fetchUserDevices(recipientUid)
+                val senderDevices = DeviceKeyManager.fetchUserDevices(senderUid)
+
+                val encryptedMediaKeys = mutableMapOf<String, String>()
+                for (dev in recipientDevices) {
+                    if (DeviceKeyManager.verifyAndTrustDevice(context, recipientUid, dev)) {
+                        try {
+                            val pubHandle = KeyManager.deserializeKeysetHandle(java.util.Base64.getDecoder().decode(dev.hpkePublicKey))
+                            val wrapped = MediaEncryptor.wrapMediaKey(mediaKey, pubHandle)
+                            encryptedMediaKeys[dev.deviceId] = java.util.Base64.getEncoder().encodeToString(wrapped)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to wrap text key for recipient device ${dev.deviceId}: ${e.message}")
+                        }
+                    }
+                }
+                for (dev in senderDevices) {
+                    if (DeviceKeyManager.verifyAndTrustDevice(context, senderUid, dev)) {
+                        try {
+                            val pubHandle = KeyManager.deserializeKeysetHandle(java.util.Base64.getDecoder().decode(dev.hpkePublicKey))
+                            val wrapped = MediaEncryptor.wrapMediaKey(mediaKey, pubHandle)
+                            encryptedMediaKeys[dev.deviceId] = java.util.Base64.getEncoder().encodeToString(wrapped)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to wrap text key for sender device ${dev.deviceId}: ${e.message}")
+                        }
+                    }
+                }
+
+                EncryptedTextResult(
+                    cipherText = cipherTextB64,
+                    encryptedMetadata = encMetadataB64,
+                    encryptedMediaKeys = encryptedMediaKeys
+                )
+            } else {
+                // Group Chat
+                val epochId = fetchChannelEpoch(channelId)
+                var session = GroupSenderKeyManager.getSenderSession(channelId, epochId)
+                if (session == null) {
+                    val rootKey = GroupSenderKeyManager.generateRootChainKey()
+                    GroupSenderKeyManager.initSenderSession(channelId, epochId, rootKey)
+                    distributeGroupRootChainKey(context, channelId, epochId, senderUid, rootKey)
+                }
+
+                val (senderKeyIndex, mediaKey) = GroupSenderKeyManager.stepSender(channelId, epochId)
+                val cipherTextB64 = MediaEncryptor.encryptText(plaintext, mediaKey, aad)
+                val encMetadataB64 = if (!metadataJson.isNullOrBlank()) {
+                    MediaEncryptor.encryptText(metadataJson, mediaKey, aad)
+                } else null
+
+                EncryptedTextResult(
+                    cipherText = cipherTextB64,
+                    encryptedMetadata = encMetadataB64,
+                    groupEpochId = epochId,
+                    senderKeyIndex = senderKeyIndex
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Encryption error in encryptTextMessage: ${e.message}", e)
+            null
+        }
+    }
+
+    /**
+     * Decrypts an encrypted text message. Returns decrypted copy of Message or original if not encrypted.
+     */
+    suspend fun decryptTextMessage(
+        context: Context,
+        channelId: String,
+        message: Message
+    ): Message = withContext(Dispatchers.IO) {
+        if (message.textEncrypted != true || message.cipherText.isNullOrBlank()) {
+            return@withContext message
+        }
+
+        try {
+            val mediaKey = resolveMediaKeyForMessage(context, channelId, message)
+            if (mediaKey == null) {
+                Log.w(TAG, "Cannot resolve key for encrypted text message ${message.id}")
+                return@withContext message.copy(message = "🔒 Decryption pending or unavailable")
+            }
+
+            val aad = CanonicalAad.build(channelId, message.id, "text")
+            val decryptedPlaintext = MediaEncryptor.decryptText(message.cipherText, mediaKey, aad)
+
+            var decryptedReplySender: String? = message.replyToSenderName
+            var decryptedReplyText: String? = message.replyToMessageText
+            var decryptedFileName: String? = message.fileName
+
+            if (!message.encryptedMetadata.isNullOrBlank()) {
+                try {
+                    val metadataJsonStr = MediaEncryptor.decryptText(message.encryptedMetadata, mediaKey, aad)
+                    val json = org.json.JSONObject(metadataJsonStr)
+                    if (json.has("replyToSenderName")) decryptedReplySender = json.optString("replyToSenderName")
+                    if (json.has("replyToMessageText")) decryptedReplyText = json.optString("replyToMessageText")
+                    if (json.has("fileName")) decryptedFileName = json.optString("fileName")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to decrypt metadata for ${message.id}: ${e.message}")
+                }
+            }
+
+            message.copy(
+                message = decryptedPlaintext,
+                replyToSenderName = decryptedReplySender,
+                replyToMessageText = decryptedReplyText,
+                fileName = decryptedFileName
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to decrypt text message ${message.id}: ${e.message}")
+            message.copy(message = "🔒 Decryption error")
+        }
+    }
+
     /**
      * Encrypts and uploads media for a Direct Chat message.
      */
@@ -352,22 +494,45 @@ object EncryptedMediaManager {
 
             val mediaKey = resolveMediaKeyForMessage(context, channelId, message) ?: return@withLock null
             val signedUrl = VaultMediaManager.resolveMediaUrl(audioUrl) ?: return@withLock null
-            val ciphertext = downloadBytesFromUrl(signedUrl) ?: return@withLock null
             val aad = CanonicalAad.build(channelId, message.id, "AUDIO")
 
+            val tempEncFile = File(context.noBackupFilesDir, "temp_enc_audio_${message.id}.enc")
             try {
-                val plaintext = MediaEncryptor.decryptSmall(ciphertext, mediaKey, aad)
-                localDecFile.writeBytes(plaintext)
+                downloadFileFromUrl(signedUrl, tempEncFile)
+                if (!tempEncFile.exists() || tempEncFile.length() == 0L) return@withLock null
+
+                var decrypted = false
+                if (tempEncFile.length() <= SMALL_MEDIA_THRESHOLD_BYTES + 1024 * 1024) {
+                    try {
+                        val encBytes = tempEncFile.readBytes()
+                        val decBytes = MediaEncryptor.decryptSmall(encBytes, mediaKey, aad)
+                        localDecFile.writeBytes(decBytes)
+                        decrypted = true
+                    } catch (_: Exception) {
+                        // Fallback to streaming AEAD
+                    }
+                }
+
+                if (!decrypted) {
+                    FileInputStream(tempEncFile).use { encInput ->
+                        FileOutputStream(localDecFile).use { decOutput ->
+                            MediaEncryptor.decryptStream(encInput, decOutput, mediaKey, aad)
+                        }
+                    }
+                }
                 localDecFile
             } catch (e: Exception) {
                 Log.e(TAG, "Decryption failed for audio message ${message.id}: ${e.message}")
+                if (localDecFile.exists()) localDecFile.delete()
                 null
+            } finally {
+                if (tempEncFile.exists()) tempEncFile.delete()
             }
         }
     }
 
     /**
-     * Resolves and decrypts a video message using Streaming AEAD to a temp file in noBackupFilesDir.
+     * Resolves and decrypts a video message supporting both AEAD (<= 5MB) and Streaming AEAD to a temp file in noBackupFilesDir.
      */
     suspend fun getOrDecryptVideoFile(
         context: Context,
@@ -391,20 +556,33 @@ object EncryptedMediaManager {
             val signedUrl = VaultMediaManager.resolveMediaUrl(videoUrl) ?: return@withLock null
             val aad = CanonicalAad.build(channelId, message.id, "VIDEO")
 
-            // Download ciphertext stream and decrypt
             val tempEncFile = File(context.noBackupFilesDir, "temp_enc_video_${message.id}.enc")
             try {
                 downloadFileFromUrl(signedUrl, tempEncFile)
                 if (!tempEncFile.exists() || tempEncFile.length() == 0L) return@withLock null
 
-                FileInputStream(tempEncFile).use { encInput ->
-                    FileOutputStream(localDecFile).use { decOutput ->
-                        MediaEncryptor.decryptStream(encInput, decOutput, mediaKey, aad)
+                var decrypted = false
+                if (tempEncFile.length() <= SMALL_MEDIA_THRESHOLD_BYTES + 1024 * 1024) {
+                    try {
+                        val encBytes = tempEncFile.readBytes()
+                        val decBytes = MediaEncryptor.decryptSmall(encBytes, mediaKey, aad)
+                        localDecFile.writeBytes(decBytes)
+                        decrypted = true
+                    } catch (_: Exception) {
+                        // Fallback to streaming AEAD
+                    }
+                }
+
+                if (!decrypted) {
+                    FileInputStream(tempEncFile).use { encInput ->
+                        FileOutputStream(localDecFile).use { decOutput ->
+                            MediaEncryptor.decryptStream(encInput, decOutput, mediaKey, aad)
+                        }
                     }
                 }
                 localDecFile
             } catch (e: Exception) {
-                Log.e(TAG, "Streaming decryption failed for video message ${message.id}: ${e.message}")
+                Log.e(TAG, "Decryption failed for video message ${message.id}: ${e.message}")
                 if (localDecFile.exists()) localDecFile.delete()
                 null
             } finally {
@@ -424,13 +602,44 @@ object EncryptedMediaManager {
         val fileUrl = message.fileUrl ?: return@withContext null
         if (message.mediaEncrypted != true) return@withContext null
 
-        val safeName = (message.fileName ?: "doc").replace(Regex("[^a-zA-Z0-9._-]"), "_")
+        val rawName = message.fileName?.takeIf { it.isNotBlank() && it != "Encrypted Document" }
+        val extensionFromMime = when (message.fileMimeType) {
+            "application/pdf" -> ".pdf"
+            "application/msword" -> ".doc"
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> ".docx"
+            "application/vnd.ms-excel" -> ".xls"
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> ".xlsx"
+            "application/vnd.ms-powerpoint" -> ".ppt"
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation" -> ".pptx"
+            "text/plain" -> ".txt"
+            "application/zip" -> ".zip"
+            else -> ""
+        }
+        val initialName = rawName ?: "document$extensionFromMime"
+        val safeName = if (initialName.contains(".") || extensionFromMime.isEmpty()) {
+            initialName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+        } else {
+            "${initialName.replace(Regex("[^a-zA-Z0-9._-]"), "_")}$extensionFromMime"
+        }
+        val existingCached = context.noBackupFilesDir.listFiles()?.firstOrNull {
+            it.name.startsWith("temp_dec_doc_${message.id}_") && it.length() > 0L
+        }
+        if (existingCached != null) {
+            return@withContext existingCached
+        }
+
         val localDecFile = File(context.noBackupFilesDir, "temp_dec_doc_${message.id}_$safeName")
         if (localDecFile.exists() && localDecFile.length() > 0L) {
             return@withContext localDecFile
         }
 
         decryptionMutex.withLock {
+            val existingInLock = context.noBackupFilesDir.listFiles()?.firstOrNull {
+                it.name.startsWith("temp_dec_doc_${message.id}_") && it.length() > 0L
+            }
+            if (existingInLock != null) {
+                return@withLock existingInLock
+            }
             if (localDecFile.exists() && localDecFile.length() > 0L) {
                 return@withLock localDecFile
             }
@@ -444,9 +653,23 @@ object EncryptedMediaManager {
                 downloadFileFromUrl(signedUrl, tempEncFile)
                 if (!tempEncFile.exists() || tempEncFile.length() == 0L) return@withLock null
 
-                FileInputStream(tempEncFile).use { encInput ->
-                    FileOutputStream(localDecFile).use { decOutput ->
-                        MediaEncryptor.decryptStream(encInput, decOutput, mediaKey, aad)
+                var decrypted = false
+                if (tempEncFile.length() <= SMALL_MEDIA_THRESHOLD_BYTES + 1024 * 1024) {
+                    try {
+                        val encBytes = tempEncFile.readBytes()
+                        val decBytes = MediaEncryptor.decryptSmall(encBytes, mediaKey, aad)
+                        localDecFile.writeBytes(decBytes)
+                        decrypted = true
+                    } catch (_: Exception) {
+                        // Fallback to streaming AEAD
+                    }
+                }
+
+                if (!decrypted) {
+                    FileInputStream(tempEncFile).use { encInput ->
+                        FileOutputStream(localDecFile).use { decOutput ->
+                            MediaEncryptor.decryptStream(encInput, decOutput, mediaKey, aad)
+                        }
                     }
                 }
                 localDecFile
@@ -614,6 +837,23 @@ object EncryptedMediaManager {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error cleaning temp files: ${e.message}")
+        }
+    }
+
+    /**
+     * Cleans up temporary plaintext/ciphertext decrypted files in noBackupFilesDir that are older than 24 hours.
+     */
+    fun cleanupOldTempFiles(context: Context) {
+        try {
+            val dir = context.noBackupFilesDir
+            val cutoff = System.currentTimeMillis() - 24L * 60 * 60 * 1000L
+            dir.listFiles()?.forEach { file ->
+                if ((file.name.startsWith("temp_dec_") || file.name.startsWith("temp_enc_")) && file.lastModified() < cutoff) {
+                    file.delete()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error cleaning old temp files: ${e.message}")
         }
     }
 

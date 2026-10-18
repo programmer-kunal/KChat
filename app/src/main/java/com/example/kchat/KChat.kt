@@ -25,19 +25,43 @@ import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
 
 @HiltAndroidApp
-class KChat: Application() {
+class KChat: Application(), ImageLoaderFactory {
     private var currentInitializedUser: String? = null
     private var activeActivities = 0
 
     companion object {
         var isAppInForeground: Boolean = false
             private set
+        @Volatile
+        var currentlyActiveChannelId: String? = null
+        @Volatile
+        var isZegoConnected: Boolean = false
+        @Volatile
+        var isZegoInitializing: Boolean = false
+        val isZegoConnectedFlow = kotlinx.coroutines.flow.MutableStateFlow(false)
     }
 
     override fun onCreate() {
         super.onCreate()
+
+        // Initialize Whole-App Local-First Caching
+        com.example.kchat.data.cache.LocalDataCache.init(this)
+
+        // Enable Firebase Realtime Database disk persistence (offline SQLite caching)
+        try {
+            com.google.firebase.database.FirebaseDatabase.getInstance().apply {
+                setPersistenceEnabled(true)
+                setPersistenceCacheSizeBytes(100L * 1024 * 1024)
+            }
+        } catch (e: Exception) {
+            Log.w("KChat", "Firebase persistence note: ${e.message}")
+        }
 
         // Initialize Google Tink Cryptographic Providers (Phase 2D E2EE)
         try {
@@ -46,6 +70,7 @@ class KChat: Application() {
         } catch (e: Exception) {
             Log.e("KChat", "Failed to register Tink configs: ${e.message}")
         }
+        com.example.kchat.crypto.EncryptedMediaManager.cleanupOldTempFiles(this)
 
         // Initialize theme preference from SharedPreferences
         com.example.kchat.ui.theme.ThemeManager.init(this)
@@ -90,62 +115,66 @@ class KChat: Application() {
         com.google.firebase.auth.FirebaseAuth.getInstance().addAuthStateListener { auth ->
             val currentUser = auth.currentUser
             if (currentUser != null) {
-                currentUser.email?.let { email ->
-                    if (email != currentInitializedUser) {
-                        currentInitializedUser = email
-                        val uid = currentUser.uid
+                val uid = currentUser.uid
+                val email = currentUser.email ?: "user_${uid.take(5)}@kchat.com"
+                val initialName = currentUser.displayName?.takeIf { it.isNotBlank() } ?: email
 
-                        // Fetch real-time database user name to display username instead of email in call screen and notifications
-                        com.google.firebase.database.FirebaseDatabase.getInstance().getReference("users")
-                            .child(uid)
-                            .child("name")
-                            .get()
-                            .addOnSuccessListener { snapshot ->
-                                val dbName = snapshot.getValue(String::class.java)
-                                val finalName = if (!dbName.isNullOrBlank()) dbName else (currentUser.displayName ?: email)
-                                Log.d("NotificationDebug", "AuthStateListener -> User is logged in, initializing Zego with name: $finalName")
-                                initZegoService(
-                                    appID = AppID,
-                                    appSign = AppSign,
-                                    userID = email,
-                                    userName = finalName
-                                )
-                            }
-                            .addOnFailureListener {
-                                val fallbackName = currentUser.displayName ?: email
-                                Log.w("NotificationDebug", "Failed to fetch database name, fallback to: $fallbackName")
-                                initZegoService(
-                                    appID = AppID,
-                                    appSign = AppSign,
-                                    userID = email,
-                                    userName = fallbackName
-                                )
-                            }
+                val cleanUserId = email.take(32)
+                if (currentInitializedUser != cleanUserId) {
+                    initZegoService(
+                        appID = AppID,
+                        appSign = AppSign,
+                        userID = cleanUserId,
+                        userName = initialName
+                    )
+                }
 
-                        // Upload FCM token to database upon login/session restore
-                        com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
-                            com.google.firebase.database.FirebaseDatabase.getInstance().getReference("users")
-                                .child(uid)
-                                .child("fcmToken")
-                                .setValue(token)
-                            Log.d("NotificationDebug", "FCM token uploaded to database for user: $email")
-                        }
+                // Upload FCM token to database upon login/session restore
+                com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+                    // Primary secure location: user_private/$uid/fcmToken
+                    com.google.firebase.database.FirebaseDatabase.getInstance().getReference("user_private")
+                        .child(uid)
+                        .child("fcmToken")
+                        .setValue(token)
+                    // Backward compatibility: also write to users/$uid/fcmToken
+                    com.google.firebase.database.FirebaseDatabase.getInstance().getReference("users")
+                        .child(uid)
+                        .child("fcmToken")
+                        .setValue(token)
+                    Log.d("NotificationDebug", "FCM token uploaded to database for user: $email")
+                }
 
-                        // Phase 2D: Register device identity and HPKE keys in /user_devices/$uid/$deviceId
-                        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                            com.example.kchat.crypto.DeviceKeyManager.registerCurrentDevice(this@KChat, uid)
-                        }
-                    }
+                // Phase 2D: Register device identity and HPKE keys in /user_devices/$uid/$deviceId
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    com.example.kchat.crypto.DeviceKeyManager.registerCurrentDevice(this@KChat, uid)
                 }
             } else {
                 Log.d("NotificationDebug", "AuthStateListener -> User is null (logged out)")
                 currentInitializedUser = null
+                isZegoConnected = false
+                isZegoInitializing = false
+                isZegoConnectedFlow.value = false
+                try {
+                    ZegoUIKitPrebuiltCallService.unInit()
+                } catch (e: Exception) {
+                    Log.w("NotificationDebug", "Error uninitializing Zego on logout: ${e.message}")
+                }
                 com.example.kchat.crypto.EncryptedMediaManager.clear(this@KChat)
             }
         }
     }
 
+    @Synchronized
     fun initZegoService(appID: Long, appSign: String, userID: String, userName: String) {
+        val cleanUserId = if (userID.length > 32) userID.take(32) else userID
+        if (currentInitializedUser == cleanUserId && (isZegoConnected || isZegoInitializing)) {
+            Log.d("NotificationDebug", "initZegoService -> Zego already connected or initializing for $cleanUserId")
+            return
+        }
+
+        currentInitializedUser = cleanUserId
+        isZegoInitializing = true
+
         val callInvitationConfig = ZegoUIKitPrebuiltCallInvitationConfig()
         callInvitationConfig.translationText = ZegoTranslationText(ZegoUIKitLanguage.ENGLISH)
         callInvitationConfig.endCallWhenInitiatorLeave = true
@@ -158,11 +187,21 @@ class KChat: Application() {
         ZegoUIKitPrebuiltCallService.events.errorEventsListener =
             ErrorEventsListener { errorCode: Int, message: String ->
                 Timber.d("onError() called with: errorCode = [$errorCode], message = [$message]")
+                if (errorCode == 6000121) {
+                    isZegoConnected = false
+                    isZegoConnectedFlow.value = false
+                }
             }
 
         ZegoUIKitPrebuiltCallService.events.invitationEvents.pluginConnectListener =
             SignalPluginConnectListener { state: ZIMConnectionState, event: ZIMConnectionEvent, extendedData: JSONObject ->
-                Timber.d("onSignalPluginConnectionStateChanged() called")
+                Timber.d("onSignalPluginConnectionStateChanged() called with state=$state, event=$event")
+                val connected = (state == ZIMConnectionState.CONNECTED)
+                isZegoConnected = connected
+                isZegoConnectedFlow.value = connected
+                if (connected) {
+                    isZegoInitializing = false
+                }
             }
 
         // Listener for when only self is left in room -> end active call immediately so neither side stays stuck
@@ -222,7 +261,7 @@ class KChat: Application() {
             }
 
         ZegoUIKitPrebuiltCallService.init(
-            this, appID, appSign, userID, userName, callInvitationConfig
+            this, appID, appSign, cleanUserId, userName, callInvitationConfig
         )
 
         ZegoUIKitPrebuiltCallService.enableFCMPush()
@@ -231,5 +270,23 @@ class KChat: Application() {
             CallEndListener { callEndReason, jsonObject ->
                 Log.d("CallEndListener", "Call Ended with reason: $callEndReason")
             }
+    }
+
+    override fun newImageLoader(): ImageLoader {
+        return ImageLoader.Builder(this)
+            .memoryCache {
+                MemoryCache.Builder(this)
+                    .maxSizePercent(0.25)
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(cacheDir.resolve("image_cache"))
+                    .maxSizeBytes(100L * 1024 * 1024)
+                    .build()
+            }
+            .respectCacheHeaders(false)
+            .crossfade(true)
+            .build()
     }
 }

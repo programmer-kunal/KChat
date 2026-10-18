@@ -7,8 +7,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -54,7 +56,7 @@ fun KChatAiEntryPoint(
 ) {
     IconButton(
         onClick = onClick,
-        modifier = modifier.size(38.dp)
+        modifier = modifier.size(44.dp)
     ) {
         Box(
             modifier = Modifier
@@ -63,10 +65,9 @@ fun KChatAiEntryPoint(
                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.AutoAwesome,
-                contentDescription = "KChat AI",
-                tint = MaterialTheme.colorScheme.primary,
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(id = R.drawable.logo),
+                contentDescription = "K Chat AI",
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -126,17 +127,16 @@ fun KChatAiBottomSheet(
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(id = R.drawable.logo),
                         contentDescription = "KChat AI",
-                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = "KChat AI",
+                        text = "K Chat AI",
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
@@ -153,32 +153,36 @@ fun KChatAiBottomSheet(
 
             // 2x2 Feature Grid - Row 1
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 AiFeatureCard(
                     title = "Smart Reply",
                     subtitle = "Context-aware reply suggestions",
                     icon = Icons.Default.AutoAwesome,
-                    statusBadge = "Ready",
                     isActive = true,
                     onClick = {
                         onDismiss()
                         onSmartReplyClicked()
                     },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
                 )
                 AiFeatureCard(
                     title = "Thread Summary",
                     subtitle = "Key conversation highlights",
                     icon = Icons.Default.Summarize,
-                    statusBadge = "Ready",
                     isActive = true,
                     onClick = {
                         onDismiss()
                         onThreadSummaryClicked()
                     },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
                 )
             }
 
@@ -186,32 +190,36 @@ fun KChatAiBottomSheet(
 
             // 2x2 Feature Grid - Row 2
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 AiFeatureCard(
                     title = "Context Search",
                     subtitle = "Search by topic & intent",
                     icon = Icons.Default.Search,
-                    statusBadge = "Ready",
                     isActive = true,
                     onClick = {
                         onDismiss()
                         onContextSearchClicked()
                     },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
                 )
                 AiFeatureCard(
                     title = "Scam Guard",
                     subtitle = "Detect suspicious requests",
                     icon = Icons.Default.Security,
-                    statusBadge = "Ready",
                     isActive = true,
                     onClick = {
                         onDismiss()
                         onScamGuardClicked()
                     },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
                 )
             }
         }
@@ -226,7 +234,6 @@ private fun AiFeatureCard(
     title: String,
     subtitle: String,
     icon: ImageVector,
-    statusBadge: String,
     isActive: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -273,24 +280,6 @@ private fun AiFeatureCard(
                         modifier = Modifier.size(18.dp)
                     )
                 }
-
-                // Status Badge ("Ready" or "Soon")
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(
-                            if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
-                        )
-                        .padding(horizontal = 7.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = statusBadge,
-                        color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -309,6 +298,7 @@ private fun AiFeatureCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
                 lineHeight = 15.sp,
+                minLines = 2,
                 maxLines = 2
             )
         }
