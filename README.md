@@ -1,3 +1,4 @@
+
 <div align="center">
 
 <img src="assets/screenshots/KChatLogo.png" alt="K Chat logo" width="90"/>
@@ -41,12 +42,12 @@ K Chat combines real-time direct and group messaging, multimedia sharing, voice/
 
 - [Overview](#-overview)
 - [Core Communication](#-core-communication)
-- [K Chat Extension](#-k-chat-extension)
 - [K Chat AI](#-k-chat-ai)
   - [Smart Reply](#-smart-reply)
   - [Thread Summary](#-thread-summary)
   - [Context Search](#-context-search)
   - [Scam Guard](#-scam-guard)
+- [K Chat Extension](#-k-chat-extension)
 - [Media and Attachments](#-media-and-attachments)
 - [Encryption and Privacy](#-encryption-and-privacy)
 - [Architecture](#-architecture)
@@ -103,23 +104,6 @@ K Chat provides the foundations for everyday private and group conversations:
 - 🔔 Push notifications for supported message events.
 - 📞 Voice calls and 📹 video calls.
 - ⚡ Local-first rendering/cache for smoother chat navigation.
-
----
-
-## 🧩 K Chat Extension
-
-**K Chat Extension brings useful conversation actions into the chat experience.** It acts as an in-chat access point for extension tools and contextual assistance, helping users reach available features without treating every task as a separate destination.
-
-The extension experience complements the regular message composer and attachment flow. Depending on the context and available UI, users can open tool cards or actions related to K Chat's AI capabilities and communication workflow.
-
-### Why it matters
-
-- **In-context access:** helps users reach tools from within the conversation workflow.
-- **One place for assistance:** presents supported extension actions in a consistent interface.
-- **User-controlled:** users choose when to open a feature and what context to provide.
-- **Keeps messaging central:** AI assistance complements messaging rather than automatically taking over the conversation.
-
-K Chat Extension is a UI and workflow entry point; it is distinct from the underlying AI models, storage services, and encryption mechanisms described in later sections.
 
 ---
 
@@ -256,6 +240,68 @@ Scam Guard is an assistance feature, not a guarantee that a message is safe or m
 | Scam Guard | User-selected message | Potential risk indicators and recommendations | Support scam awareness |
 
 All four AI features are user-triggered. Their outputs are suggestions and can be incomplete or incorrect; users should apply their own judgment.
+
+---
+
+## 🧩 K Chat Extension
+
+**K Chat Extension lets users apply K Chat's four AI features to conversation content they choose to bring into K Chat—even when that content comes from another platform.** For example, users can copy messages from WhatsApp, Instagram, Telegram, or another app and provide that content to the extension for analysis.
+
+The extension offers three ways to supply content:
+
+- **Paste Messages:** paste copied chat messages or conversation text.
+- **Screenshots:** add screenshots of a conversation for supported text extraction and analysis.
+- **Import Text:** bring in conversation text from a supported text source.
+
+When recognizable conversation text is supplied, the extension can display parsing information such as the number of messages and participants detected. The user can then choose which AI feature to apply to the supplied content.
+
+### Extension workflow
+
+```text
+Copy, capture, or import conversation content
+                     ↓
+              Open K Chat Extension
+                     ↓
+       Paste Messages / Screenshots / Import Text
+                     ↓
+        Review the supplied conversation content
+                     ↓
+          Choose one of the four AI features
+                     ↓
+        View the result and copy it if needed
+```
+
+### Use the four AI tools beyond a single chat app
+
+- **Smart Reply:** generate possible replies based on the supplied messages and context. Suggested replies can be copied individually, or the displayed result can be copied where supported.
+- **Thread Summary:** turn supplied conversation content into a concise overview of key points, decisions, tasks, or deadlines where available.
+- **Context Search:** ask a question about the supplied content to find relevant information.
+- **Scam Guard:** examine a supplied message for potential phishing, fraud, or scam warning signs.
+
+### K Chat Extension screenshots
+
+The screenshots below show the extension's input methods, feature selection, and example results.
+
+<div align="center">
+
+| K Chat Extension — content input and feature selection | K Chat Extension — Smart Reply result |
+|---|---|
+| <img src="assets/screenshots/KChatExtensionUI.jpg" alt="K Chat Extension with Paste Messages, Screenshots, Import Text, and four AI feature cards" width="230"/> | <img src="assets/screenshots/KChatExtensionSRR.jpg" alt="K Chat Extension Smart Reply result with message analysis and copyable suggestions" width="230"/> |
+
+| K Chat Extension — Smart Reply | K Chat Extension — Thread Summary |
+|---|---|
+| <img src="assets/screenshots/KChatExtensionSR.jpg" alt="K Chat Extension Smart Reply feature" width="230"/> | <img src="assets/screenshots/KChatExtensionTS.jpg" alt="K Chat Extension Thread Summary result" width="230"/> |
+
+</div>
+
+### What makes the extension useful?
+
+- **Cross-app workflow:** users can bring in messages copied from other apps instead of limiting every AI task to a conversation stored in K Chat.
+- **Multiple input methods:** users can paste text, provide screenshots, or import text through the available tabs.
+- **Four distinct tools in one place:** users select the feature that matches their need rather than receiving one generic AI response.
+- **User-controlled results:** generated suggestions, summaries, search results, and risk indicators are presented for the user to review. Smart Reply does not automatically send a message into the source app.
+
+**Important:** K Chat Extension works with the content that the user provides. It does not silently read all messages or automatically access the private conversation history of WhatsApp, Instagram, or other third-party apps. AI output may be incomplete or incorrect and should be reviewed before use.
 
 ---
 
