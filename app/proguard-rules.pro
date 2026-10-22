@@ -27,6 +27,14 @@
 -keepattributes *Annotation*, Signature, InnerClasses, EnclosingMethod
 
 -keep class com.example.kchat.model.** { *; }
+-keepclassmembers class com.example.kchat.model.** { *; }
+
+-keep class com.example.kchat.crypto.DeviceKeyManager$DeviceRecord { *; }
+-keepclassmembers class com.example.kchat.crypto.DeviceKeyManager$DeviceRecord {
+    <init>(...);
+    <fields>;
+    <methods>;
+}
 
 -keepclassmembers class * {
     @com.google.firebase.database.PropertyName <fields>;

@@ -51,13 +51,16 @@ object DeviceKeyManager {
     private const val IDENTITY_KEY_ALIAS = "kchat_identity_ec"
     private const val MASTER_KEY_ALIAS = "kchat_storage_master"
 
+    @com.google.firebase.database.IgnoreExtraProperties
     data class DeviceRecord(
         val deviceId: String = "",
         val identityPublicKey: String = "",
         val hpkePublicKey: String = "",
         val deviceBindingSignature: String = "",
         val registeredAt: Long = 0L
-    )
+    ) {
+        constructor() : this("", "", "", "", 0L)
+    }
 
     init {
         try {
@@ -308,9 +311,48 @@ object DeviceKeyManager {
                     override fun onDataChange(snapshot: DataSnapshot) {
                         val devices = mutableListOf<DeviceRecord>()
                         for (child in snapshot.children) {
-                            val record = child.getValue(DeviceRecord::class.java)
-                            if (record != null && record.deviceId.isNotBlank()) {
-                                devices.add(record)
+                            try {
+                                val record = child.getValue(DeviceRecord::class.java)
+                                if (record != null && record.deviceId.isNotBlank()) {
+                                    devices.add(record)
+                                } else {
+                                    val devId = child.child("deviceId").getValue(String::class.java)
+                                    val idPub = child.child("identityPublicKey").getValue(String::class.java)
+                                    val hpkePub = child.child("hpkePublicKey").getValue(String::class.java)
+                                    val sig = child.child("deviceBindingSignature").getValue(String::class.java)
+                                    val regAt = child.child("registeredAt").getValue(Long::class.java) ?: 0L
+                                    if (!devId.isNullOrBlank() && !idPub.isNullOrBlank() && !hpkePub.isNullOrBlank()) {
+                                        devices.add(
+                                            DeviceRecord(
+                                                deviceId = devId,
+                                                identityPublicKey = idPub,
+                                                hpkePublicKey = hpkePub,
+                                                deviceBindingSignature = sig ?: "",
+                                                registeredAt = regAt
+                                            )
+                                        )
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error deserializing DeviceRecord for ${child.key}: ${e.message}")
+                                try {
+                                    val devId = child.child("deviceId").getValue(String::class.java)
+                                    val idPub = child.child("identityPublicKey").getValue(String::class.java)
+                                    val hpkePub = child.child("hpkePublicKey").getValue(String::class.java)
+                                    val sig = child.child("deviceBindingSignature").getValue(String::class.java)
+                                    val regAt = child.child("registeredAt").getValue(Long::class.java) ?: 0L
+                                    if (!devId.isNullOrBlank() && !idPub.isNullOrBlank() && !hpkePub.isNullOrBlank()) {
+                                        devices.add(
+                                            DeviceRecord(
+                                                deviceId = devId,
+                                                identityPublicKey = idPub,
+                                                hpkePublicKey = hpkePub,
+                                                deviceBindingSignature = sig ?: "",
+                                                registeredAt = regAt
+                                            )
+                                        )
+                                    }
+                                } catch (ignored: Exception) {}
                             }
                         }
                         if (cont.isActive) cont.resume(devices)
